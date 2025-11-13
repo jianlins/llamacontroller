@@ -39,12 +39,17 @@ async def root(
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_page(
     request: Request,
-    error: Optional[str] = None
+    error: Optional[str] = None,
+    next: Optional[str] = None
 ):
     """Display login page."""
     return templates.TemplateResponse(
         "login.html",
-        {"request": request, "error": error}
+        {
+            "request": request,
+            "error": error,
+            "next": next
+        }
     )
 
 
@@ -53,6 +58,7 @@ async def login_submit(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    next: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """Process login form submission."""
@@ -72,7 +78,8 @@ async def login_submit(
             {
                 "request": request,
                 "error": error_msg or "Invalid username or password",
-                "username": username
+                "username": username,
+                "next": next
             },
             status_code=status.HTTP_401_UNAUTHORIZED
         )
@@ -80,8 +87,15 @@ async def login_submit(
     # Create session
     login_response = auth_service.create_session(user, ip_address, user_agent)
     
+    # Determine redirect URL - use next parameter if valid, otherwise dashboard
+    redirect_url = "/dashboard"
+    if next and next.startswith("/") and not next.startswith("//"):
+        # Only allow relative URLs starting with / but not //
+        # This prevents open redirect vulnerabilities
+        redirect_url = next
+    
     # Set session cookie
-    response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     response.set_cookie(
         key="session_id",
         value=login_response.session_id,

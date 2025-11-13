@@ -7,6 +7,7 @@
             <p class="mt-2 text-center text-sm text-gray-600">登录以管理 llama.cpp 模型</p></div>
         {% if error %}<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{{ error }}</div>{% endif %}
         <form method="POST" action="/login" class="mt-8 space-y-6">
+            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
             <div class="rounded-md shadow-sm -space-y-px">
                 <div><input id="username" name="username" type="text" required class="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="用户名"></div>
                 <div><input id="password" name="password" type="password" required class="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="密码"></div>

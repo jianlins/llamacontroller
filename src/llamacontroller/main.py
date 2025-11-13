@@ -4,9 +4,10 @@ LlamaController FastAPI application entry point.
 
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.exceptions import HTTPException
 
 from .api import management, ollama, auth, tokens, users
 from .web import routes as web_routes
@@ -109,6 +110,70 @@ async def root():
 async def health():
     """Basic health check endpoint."""
     return {"status": "ok"}
+
+# Exception handler for 401 Unauthorized - redirect to login for web UI
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    Handle HTTP exceptions.
+    
+    For 401 Unauthorized on web UI routes, redirect to login page.
+    For API routes, return JSON response.
+    """
+    # Check if this is a web UI request (not API)
+    is_web_ui = (
+        request.url.path.startswith("/dashboard") or
+        request.url.path.startswith("/tokens") or
+        request.url.path.startswith("/logs") or
+        (request.url.path == "/" and "text/html" in request.headers.get("accept", ""))
+    )
+    
+    # For 401 on web UI, redirect to login
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED and is_web_ui:
+        logger.info(f"Redirecting unauthorized request to login: {request.url.path}")
+        return RedirectResponse(
+            url=f"/login?error=请先登录&next={request.url.path}",
+            status_code=status.HTTP_302_FOUND
+        )
+    
+    # For API routes or other status codes, return JSON
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers
+    )
+
+# Exception handler for 404 Not Found - redirect to login for web UI
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    """
+    Handle 404 Not Found errors.
+    
+    For web UI requests, redirect to login page.
+    For API requests, return JSON response.
+    """
+    # Check if this is likely a web UI request (browser)
+    accept_header = request.headers.get("accept", "")
+    is_browser_request = "text/html" in accept_header
+    is_api_request = (
+        request.url.path.startswith("/api/") or
+        request.url.path.startswith("/v1/") or
+        "application/json" in accept_header
+    )
+    
+    # For browser requests to non-API paths, redirect to login
+    if is_browser_request and not is_api_request:
+        logger.info(f"Redirecting 404 request to login: {request.url.path}")
+        return RedirectResponse(
+            url="/login?error=页面不存在",
+            status_code=status.HTTP_302_FOUND
+        )
+    
+    # For API requests, return JSON 404
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Not found"}
+    )
 
 # Exception handler for uncaught exceptions
 @app.exception_handler(Exception)
