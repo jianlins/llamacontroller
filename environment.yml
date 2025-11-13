@@ -1,0 +1,10 @@
+name: llamacontroller
+channels:
+  - conda-forge
+dependencies:
+  # Python
+  - python>=3.11
+  
+  # Package managers
+  - pip
+  - uv

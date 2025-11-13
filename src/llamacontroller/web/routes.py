@@ -5,6 +5,7 @@ Provides web-based interface for managing llama.cpp models.
 Uses HTMX for dynamic interactions and Jinja2 for server-side rendering.
 """
 
+import logging
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -17,6 +18,9 @@ from ..db.base import get_db
 from ..db.models import User
 from ..api.dependencies import get_lifecycle_manager
 from ..core.lifecycle import ModelLifecycleManager
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Initialize router
 router = APIRouter(tags=["Web UI"])
@@ -426,8 +430,17 @@ async def logs_page(
     lifecycle_manager: ModelLifecycleManager = Depends(get_lifecycle_manager)
 ):
     """Display logs viewer page."""
-    # Get recent logs
-    logs = lifecycle_manager.adapter.get_logs(lines=100) if lifecycle_manager.adapter else []
+    # Get recent logs from any loaded GPU instance
+    try:
+        # Debug: Check what GPU instances are loaded
+        loaded_gpus = list(lifecycle_manager.gpu_instances.keys())
+        logger.info(f"Logs page - Loaded GPU instances: {loaded_gpus}")
+        
+        logs = await lifecycle_manager.get_server_logs(gpu_id=None, lines=100)
+        logger.info(f"Logs page - Retrieved {len(logs)} log lines")
+    except Exception as e:
+        logger.error(f"Error fetching logs: {e}", exc_info=True)
+        logs = [f"Error fetching logs: {str(e)}"]
     
     return templates.TemplateResponse(
         "logs.html",
@@ -447,7 +460,10 @@ async def refresh_logs(
     lifecycle_manager: ModelLifecycleManager = Depends(get_lifecycle_manager)
 ):
     """Refresh logs (HTMX endpoint)."""
-    logs = lifecycle_manager.adapter.get_logs(lines=100) if lifecycle_manager.adapter else []
+    try:
+        logs = await lifecycle_manager.get_server_logs(gpu_id=None, lines=100)
+    except Exception as e:
+        logs = [f"Error fetching logs: {str(e)}"]
     
     return templates.TemplateResponse(
         "partials/logs_content.html",

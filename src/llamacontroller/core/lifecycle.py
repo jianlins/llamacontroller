@@ -580,27 +580,51 @@ class ModelLifecycleManager:
     
     async def get_server_logs(
         self, 
-        gpu_id: Union[int, str] = 0, 
+        gpu_id: Union[int, str] = None, 
         lines: int = 300
     ) -> List[str]:
         """
-        获取指定GPU的服务器日志
+        获取指定GPU的服务器日志，如果gpu_id为None则返回第一个可用实例的日志
         
         Args:
-            gpu_id: GPU ID
+            gpu_id: GPU ID (None表示自动选择第一个可用的)
             lines: 日志行数
             
         Returns:
             日志行列表
         """
+        logger.info(f"get_server_logs called with gpu_id={gpu_id}, lines={lines}")
+        logger.info(f"Current gpu_instances: {list(self.gpu_instances.keys())}")
+        
+        # 如果没有指定GPU，尝试查找第一个可用的实例
+        if gpu_id is None:
+            if not self.gpu_instances:
+                logger.warning("No GPU instances loaded")
+                return ["No models currently loaded"]
+            # 返回第一个可用实例的日志
+            gpu_id = next(iter(self.gpu_instances.keys()))
+            logger.info(f"Auto-selected GPU: {gpu_id}")
+        
         normalized_gpu_id = self._normalize_gpu_id(gpu_id)
+        logger.info(f"Normalized GPU ID: {normalized_gpu_id}")
         
         if normalized_gpu_id not in self.gpu_instances:
+            # 列出当前加载的GPU
+            loaded_gpus = list(self.gpu_instances.keys())
+            logger.warning(f"GPU {normalized_gpu_id} not found in loaded instances: {loaded_gpus}")
+            if loaded_gpus:
+                return [
+                    f"No model loaded on GPU {normalized_gpu_id}",
+                    f"Models are currently loaded on: {', '.join(loaded_gpus)}"
+                ]
             return [f"No model loaded on GPU {normalized_gpu_id}"]
         
         instance = self.gpu_instances[normalized_gpu_id]
         lines = min(lines, 300)
-        return instance.adapter.get_logs(lines=lines)
+        logger.info(f"Getting logs from GPU {normalized_gpu_id}, model: {instance.model_id}")
+        log_lines = instance.adapter.get_logs(lines=lines)
+        logger.info(f"Retrieved {len(log_lines)} log lines")
+        return log_lines
     
     def __del__(self):
         """清理时停止所有实例"""
