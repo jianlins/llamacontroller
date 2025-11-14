@@ -194,6 +194,16 @@ llamacontroller/
 - [Token Authentication](docs/TOKEN_AUTHENTICATION_GUIDE.md) - API token usage
 - [Parameter Configuration](docs/PARAMETER_CONFIGURATION.md) - Model parameters
 
+### User Manual (English)
+- [Introduction](docs/user-manual-01-intro.md)
+- [Installation & Setup](docs/user-manual-02-installation.md)
+- [Basic Usage](docs/user-manual-03-usage.md)
+- [API Reference](docs/user-manual-04-api.md)
+- [Multi-GPU Features](docs/user-manual-05-multi-gpu.md)
+- [Web UI Guide](docs/user-manual-06-web-ui.md)
+- [Troubleshooting](docs/user-manual-07-troubleshooting.md)
+- [Testing Best Practices](docs/user-manual-08-testing.md)
+
 ### Technical Documentation
 - [Project Overview](design/01-overview.md)
 - [Enhancement Requirements](design/02-enhancement-requirements.md)
