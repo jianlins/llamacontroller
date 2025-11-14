@@ -13,6 +13,14 @@ class GpuPortsConfig(BaseModel):
     gpu1: int = Field(default=8088, ge=1, le=65535, description="Port for GPU 1")
     both: int = Field(default=8081, ge=1, le=65535, description="Port when using both GPUs")
 
+class GpuDetectionConfig(BaseModel):
+    """GPU detection configuration."""
+    
+    enabled: bool = Field(default=True, description="Enable GPU detection")
+    memory_threshold_mb: int = Field(default=30, ge=1, description="Memory threshold in MB to consider GPU occupied")
+    mock_mode: bool = Field(default=False, description="Enable mock mode for testing without nvidia-smi")
+    mock_data_path: str = Field(default="data/gpu.txt", description="Path to mock nvidia-smi output file")
+
 class LlamaCppConfig(BaseModel):
     """Configuration for llama.cpp executable."""
     
@@ -20,6 +28,7 @@ class LlamaCppConfig(BaseModel):
     default_host: str = Field(default="127.0.0.1", description="Default host for llama-server")
     default_port: int = Field(default=8080, ge=1, le=65535, description="Default port for llama-server (deprecated, use gpu_ports)")
     gpu_ports: GpuPortsConfig = Field(default_factory=GpuPortsConfig, description="Port mapping for GPU instances")
+    gpu_detection: GpuDetectionConfig = Field(default_factory=GpuDetectionConfig, description="GPU detection configuration")
     api_key: Optional[str] = Field(
         default=None, 
         description="API key for llama-server (optional). If set, llama-server will require this key for authentication. "

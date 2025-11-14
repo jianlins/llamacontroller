@@ -16,54 +16,74 @@
 {% endif %}
 
 <div id="model-status-container">
-    <div class="bg-white shadow sm:rounded-lg">
+        <div class="bg-white shadow sm:rounded-lg">
         <div class="px-4 py-5 sm:p-6">
-<h3 class="text-lg font-medium text-gray-900 mb-4">GPU Status</h3>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">GPU Status</h3>
+                {% if hardware_gpu_status %}
+                    {% if hardware_gpu_status.gpu_count > 0 %}
+                        <span class="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+                            Total GPUs: {{ hardware_gpu_status.gpu_count }}
+                        </span>
+                    {% else %}
+                        <span class="text-sm text-gray-600 bg-yellow-100 px-3 py-1 rounded-full">
+                            CPU Mode (No GPU Detected)
+                        </span>
+                    {% endif %}
+                {% endif %}
+            </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- GPU 0 Status -->
-                <div class="border rounded-lg p-4 {% if gpu_statuses and gpu_statuses.gpu0 %}bg-green-50 border-green-200{% else %}bg-gray-50 border-gray-200{% endif %}">
-                    <div class="flex items-center justify-between mb-2">
-                        <h4 class="font-semibold text-gray-900">GPU 0</h4>
-                        {% if gpu_statuses and gpu_statuses.gpu0 %}
-<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Running</span>
-                        {% else %}
-<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">Idle</span>
-                        {% endif %}
+                {% if hardware_gpu_status and hardware_gpu_status.gpu_count > 0 %}
+                    <!-- Dynamically generate GPU status cards based on detected GPU count -->
+                    {% for gpu_idx in range(hardware_gpu_status.gpu_count) %}
+                        {% set hw_gpu = hardware_gpu_status.gpus[gpu_idx] if hardware_gpu_status.gpus|length > gpu_idx else none %}
+                        {% set gpu_instance = gpu_statuses.get('gpu' ~ gpu_idx, none) if gpu_statuses else none %}
+                        <div class="border rounded-lg p-4 
+                            {% if gpu_instance %}bg-green-50 border-green-200
+                            {% elif hw_gpu and hw_gpu.state == 'occupied_by_others' %}bg-yellow-50 border-yellow-200
+                            {% else %}bg-gray-50 border-gray-200{% endif %}">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="font-semibold text-gray-900">GPU {{ gpu_idx }}</h4>
+                                {% if gpu_instance %}
+                                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Running</span>
+                                {% elif hw_gpu and hw_gpu.state == 'occupied_by_others' %}
+                                    <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">Occupied</span>
+                                {% else %}
+                                    <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">Idle</span>
+                                {% endif %}
+                            </div>
+                            {% if gpu_instance %}
+                                <p class="text-sm text-gray-600">Model: {{ gpu_instance.model_name }}</p>
+                                <p class="text-xs text-gray-500">Port: {{ gpu_instance.port }}</p>
+                                <form hx-post="/dashboard/unload-model" hx-target="#dashboard-content" hx-disabled-elt="button" class="mt-2">
+                                    <input type="hidden" name="gpu_id" value="{{ gpu_idx }}">
+                                    <button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Unload Model</button>
+                                </form>
+                            {% elif hw_gpu and hw_gpu.state == 'occupied_by_others' %}
+                                <p class="text-sm text-yellow-700">⚠️ Occupied by external process</p>
+                                <p class="text-xs text-gray-500">Memory: {{ hw_gpu.memory_used }}MiB / {{ hw_gpu.memory_total }}MiB</p>
+                                {% if hw_gpu.process_info %}
+                                    <p class="text-xs text-gray-500 mt-1">PID: {{ hw_gpu.process_info[0].pid }} ({{ hw_gpu.process_info[0].process_name }})</p>
+                                {% endif %}
+                            {% else %}
+                                <p class="text-sm text-gray-400">No Model Loaded</p>
+                                {% if hw_gpu %}
+                                    <p class="text-xs text-gray-500">Memory: {{ hw_gpu.memory_used }}MiB / {{ hw_gpu.memory_total }}MiB</p>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <!-- CPU Mode fallback -->
+                    <div class="border rounded-lg p-4 bg-gray-50 border-gray-200 col-span-full">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-semibold text-gray-900">CPU Mode</h4>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">Available</span>
+                        </div>
+                        <p class="text-sm text-gray-500">No NVIDIA GPUs detected. System will use CPU for inference.</p>
                     </div>
-                    {% if gpu_statuses and gpu_statuses.gpu0 %}
-<p class="text-sm text-gray-600">Model: {{ gpu_statuses.gpu0.model_name }}</p>
-                    <p class="text-xs text-gray-500">Port: {{ gpu_statuses.gpu0.port }}</p>
-                    <form hx-post="/dashboard/unload-model" hx-target="#dashboard-content" hx-disabled-elt="button" class="mt-2">
-                        <input type="hidden" name="gpu_id" value="0">
-<button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Unload Model</button>
-                    </form>
-                    {% else %}
-                    <p class="text-sm text-gray-400">No Model Loaded</p>
-                    {% endif %}
-                </div>
-                
-                <!-- GPU 1 Status -->
-                <div class="border rounded-lg p-4 {% if gpu_statuses and gpu_statuses.gpu1 %}bg-green-50 border-green-200{% else %}bg-gray-50 border-gray-200{% endif %}">
-                    <div class="flex items-center justify-between mb-2">
-                        <h4 class="font-semibold text-gray-900">GPU 1</h4>
-                        {% if gpu_statuses and gpu_statuses.gpu1 %}
-<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Running</span>
-                        {% else %}
-<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">Idle</span>
-                        {% endif %}
-                    </div>
-                    {% if gpu_statuses and gpu_statuses.gpu1 %}
-<p class="text-sm text-gray-600">Model: {{ gpu_statuses.gpu1.model_name }}</p>
-<p class="text-xs text-gray-500">Port: {{ gpu_statuses.gpu1.port }}</p>
-                    <form hx-post="/dashboard/unload-model" hx-target="#dashboard-content" hx-disabled-elt="button" class="mt-2">
-                        <input type="hidden" name="gpu_id" value="1">
-<button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Unload Model</button>
-                    </form>
-                    {% else %}
-<p class="text-sm text-gray-400">No Model Loaded</p>
-                    {% endif %}
-                </div>
+                {% endif %}
             </div>
             
             <!-- Multi-GPU Status (if applicable) -->

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from .config import ConfigManager
 from .adapter import LlamaCppAdapter, AdapterError
+from .gpu_detector import GpuDetector, GpuStatus as GpuDetectorStatus, GpuProcessInfo as GpuDetectorProcessInfo
 from ..models.config import ModelConfig
 from ..models.lifecycle import (
     ProcessStatus,
@@ -21,6 +22,12 @@ from ..models.lifecycle import (
     HealthCheckResponse,
     GpuInstanceStatus,
     AllGpuStatus,
+)
+from ..models.gpu import (
+    GpuStatusResponse,
+    GpuProcessInfoResponse,
+    AllGpuStatusResponse,
+    GpuDetectionConfigResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,6 +63,14 @@ class ModelLifecycleManager:
         """
         self.config_manager = config_manager
         self.gpu_instances: Dict[str, GpuInstance] = {}
+        
+        # Initialize GPU detector
+        gpu_config = config_manager.llama_cpp.gpu_detection
+        self.gpu_detector = GpuDetector(
+            memory_threshold_mb=gpu_config.memory_threshold_mb,
+            mock_mode=gpu_config.mock_mode,
+            mock_data_path=gpu_config.mock_data_path if gpu_config.mock_mode else None
+        )
         
         logger.info("ModelLifecycleManager initialized with multi-GPU support")
     
@@ -416,13 +431,17 @@ class ModelLifecycleManager:
             GpuInstanceStatus or None
         """
         normalized_gpu_id = self._normalize_gpu_id(gpu_id)
+        logger.info(f"get_gpu_status called for gpu_id={gpu_id}, normalized={normalized_gpu_id}")
+        logger.info(f"Available gpu_instances: {list(self.gpu_instances.keys())}")
         
         if normalized_gpu_id not in self.gpu_instances:
+            logger.info(f"GPU {normalized_gpu_id} not found in instances, returning None")
             return None
         
         instance = self.gpu_instances[normalized_gpu_id]
+        logger.info(f"Found instance for GPU {normalized_gpu_id}: model={instance.model_id}, port={instance.port}")
         
-        return GpuInstanceStatus(
+        status_obj = GpuInstanceStatus(
             gpu_id=normalized_gpu_id,
             port=instance.port,
             model_id=instance.model_id,
@@ -432,19 +451,26 @@ class ModelLifecycleManager:
             uptime_seconds=instance.adapter.get_uptime_seconds(),
             pid=instance.adapter.get_pid()
         )
+        logger.info(f"Returning status for GPU {normalized_gpu_id}: {status_obj}")
+        return status_obj
     
-    async def get_all_gpu_statuses(self) -> AllGpuStatus:
+    async def get_all_gpu_statuses(self) -> Dict[str, Optional[GpuInstanceStatus]]:
         """
-        Get status of all GPUs
+        Get status of all loaded GPUs
         
         Returns:
-            AllGpuStatus
+            Dictionary mapping GPU ID strings to GpuInstanceStatus
         """
-        return AllGpuStatus(
-            gpu0=await self.get_gpu_status("0"),
-            gpu1=await self.get_gpu_status("1"),
-            both=await self.get_gpu_status("0,1")
-        )
+        result = {}
+        
+        # Return status for all loaded GPU instances
+        for gpu_id in self.gpu_instances.keys():
+            result[f"gpu{gpu_id}"] = await self.get_gpu_status(gpu_id)
+        
+        logger.info(f"get_all_gpu_statuses - returning {len(result)} statuses")
+        logger.info(f"get_all_gpu_statuses - keys: {list(result.keys())}")
+        
+        return result
     
     async def _get_instance_status(self, instance: GpuInstance) -> ModelStatus:
         """
@@ -580,7 +606,7 @@ class ModelLifecycleManager:
     
     async def get_server_logs(
         self, 
-        gpu_id: Union[int, str] = None, 
+        gpu_id: Optional[Union[int, str]] = None, 
         lines: int = 300
     ) -> List[str]:
         """
@@ -625,6 +651,73 @@ class ModelLifecycleManager:
         log_lines = instance.adapter.get_logs(lines=lines)
         logger.info(f"Retrieved {len(log_lines)} log lines")
         return log_lines
+    
+    async def detect_gpu_hardware(self) -> AllGpuStatusResponse:
+        """
+        Detect GPU hardware and return status information.
+        
+        This combines hardware detection with loaded model information.
+        
+        Returns:
+            AllGpuStatusResponse with GPU statuses
+        """
+        # Update GPU detector with loaded model mappings
+        for gpu_id, instance in self.gpu_instances.items():
+            self.gpu_detector.set_model_mapping(gpu_id, instance.model_config.name)
+        
+        # Detect GPUs
+        detected_gpus = self.gpu_detector.detect_gpus()
+        
+        # Convert to response format
+        gpu_responses = []
+        for gpu_status in detected_gpus:
+            # Convert process info if present
+            process_info_response = None
+            if gpu_status.process_info:
+                process_info_response = [
+                    GpuProcessInfoResponse(
+                        gpu_index=p.gpu_index,
+                        pid=p.pid,
+                        process_name=p.process_name,
+                        used_memory=p.used_memory
+                    )
+                    for p in gpu_status.process_info
+                ]
+            
+            gpu_responses.append(GpuStatusResponse(
+                index=gpu_status.index,
+                state=gpu_status.state,
+                model_name=gpu_status.model_name,
+                process_info=process_info_response,
+                select_enabled=gpu_status.select_enabled,
+                memory_used=gpu_status.memory_used,
+                memory_total=gpu_status.memory_total
+            ))
+        
+        # Count non-CPU GPUs
+        gpu_count = len([g for g in detected_gpus if g.index >= 0])
+        
+        return AllGpuStatusResponse(
+            gpus=gpu_responses,
+            gpu_count=gpu_count,
+            detection_enabled=self.config_manager.llama_cpp.gpu_detection.enabled,
+            mock_mode=self.config_manager.llama_cpp.gpu_detection.mock_mode
+        )
+    
+    def get_gpu_detection_config(self) -> GpuDetectionConfigResponse:
+        """
+        Get GPU detection configuration.
+        
+        Returns:
+            GpuDetectionConfigResponse
+        """
+        config = self.config_manager.llama_cpp.gpu_detection
+        return GpuDetectionConfigResponse(
+            enabled=config.enabled,
+            memory_threshold_mb=config.memory_threshold_mb,
+            mock_mode=config.mock_mode,
+            mock_data_path=config.mock_data_path
+        )
     
     def __del__(self):
         """Stop all instances during cleanup"""

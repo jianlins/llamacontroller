@@ -7,11 +7,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 
-from .api import management, ollama, auth, tokens, users
+from .api import management, ollama, auth, tokens, users, gpu
 from .web import routes as web_routes
 from .api.dependencies import initialize_managers
 from .utils.logging import setup_logging
@@ -43,12 +44,14 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down LlamaController...")
 
-# Create FastAPI application
+# Create FastAPI application with custom docs URLs for air-gap environments
 app = FastAPI(
     title="LlamaController",
     description="WebUI-based management system for llama.cpp model lifecycle with Ollama API compatibility",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url=None,  # Disable default docs
+    redoc_url=None,  # Disable default redoc
 )
 
 # Configure CORS
@@ -73,6 +76,7 @@ app.include_router(auth.router)
 app.include_router(tokens.router)
 app.include_router(users.router)
 app.include_router(management.router)
+app.include_router(gpu.router)
 app.include_router(ollama.router)
 
 @app.get("/")
@@ -116,6 +120,26 @@ async def root():
 async def health():
     """Basic health check endpoint."""
     return {"status": "ok"}
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    """Custom Swagger UI using local resources for air-gap environments."""
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url or "/openapi.json",
+        title=f"{app.title} - Swagger UI",
+        swagger_js_url="/static/js/swagger-ui-bundle.js",
+        swagger_css_url="/static/css/swagger-ui.css",
+        swagger_ui_parameters={"persistAuthorization": True},
+    )
+
+@app.get("/redoc", include_in_schema=False)
+async def custom_redoc_html():
+    """Custom ReDoc using local resources for air-gap environments."""
+    return get_redoc_html(
+        openapi_url=app.openapi_url or "/openapi.json",
+        title=f"{app.title} - ReDoc",
+        redoc_js_url="/static/js/redoc.standalone.js",
+    )
 
 # Exception handler for 401 Unauthorized - redirect to login for web UI
 @app.exception_handler(HTTPException)

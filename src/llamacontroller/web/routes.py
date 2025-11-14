@@ -143,6 +143,9 @@ async def dashboard(
     # Get GPU statuses (for multi-GPU support)
     gpu_statuses = await lifecycle_manager.get_all_gpu_statuses()
     
+    # Get hardware GPU detection status
+    hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
+    
     # Get available models
     available_models = lifecycle_manager.config_manager.models.models
     
@@ -153,6 +156,7 @@ async def dashboard(
             "user": user,
             "status": status_info,
             "gpu_statuses": gpu_statuses,
+            "hardware_gpu_status": hardware_gpu_status,
             "available_models": available_models,
             "active_page": "dashboard"
         }
@@ -169,11 +173,23 @@ async def load_model_ui(
 ):
     """Load a model on specified GPU(s) (HTMX endpoint)."""
     try:
+        # Refresh GPU status before loading to ensure accurate occupancy detection
+        hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
+        
+        # Verify selected GPU(s) are not occupied
+        selected_gpus = [int(g.strip()) for g in gpu_id.split(',') if g.strip().isdigit()]
+        for gpu_idx in selected_gpus:
+            if gpu_idx < len(hardware_gpu_status.gpus):
+                gpu_info = hardware_gpu_status.gpus[gpu_idx]
+                if gpu_info.state == 'occupied_by_others':
+                    raise Exception(f"GPU {gpu_idx} is occupied by another process. Please refresh and select an available GPU.")
+        
         # Load model on specified GPU
         result = await lifecycle_manager.load_model(model_id, gpu_id)
         
         # Get updated GPU statuses and available models
         gpu_statuses = await lifecycle_manager.get_all_gpu_statuses()
+        hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
         status_info = await lifecycle_manager.get_status()
         available_models = lifecycle_manager.config_manager.models.models
         
@@ -183,6 +199,7 @@ async def load_model_ui(
                 "request": request,
                 "status": status_info,
                 "gpu_statuses": gpu_statuses,
+                "hardware_gpu_status": hardware_gpu_status,
                 "available_models": available_models,
                 "message": result.message,
                 "message_type": "success"
@@ -190,6 +207,7 @@ async def load_model_ui(
         )
     except Exception as e:
         gpu_statuses = await lifecycle_manager.get_all_gpu_statuses()
+        hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
         status_info = await lifecycle_manager.get_status()
         available_models = lifecycle_manager.config_manager.models.models
         
@@ -202,6 +220,7 @@ async def load_model_ui(
                 "request": request,
                 "status": status_info,
                 "gpu_statuses": gpu_statuses,
+                "hardware_gpu_status": hardware_gpu_status,
                 "available_models": available_models,
                 "message": f"Failed to load model: {str(e)}",
                 "message_type": "error",
@@ -223,6 +242,7 @@ async def unload_model_ui(
         
         # Get updated GPU statuses and available models
         gpu_statuses = await lifecycle_manager.get_all_gpu_statuses()
+        hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
         status_info = await lifecycle_manager.get_status()
         available_models = lifecycle_manager.config_manager.models.models
         
@@ -232,6 +252,7 @@ async def unload_model_ui(
                 "request": request,
                 "status": status_info,
                 "gpu_statuses": gpu_statuses,
+                "hardware_gpu_status": hardware_gpu_status,
                 "available_models": available_models,
                 "message": f"Successfully unloaded model from GPU {gpu_id}",
                 "message_type": "success"
@@ -239,6 +260,7 @@ async def unload_model_ui(
         )
     except Exception as e:
         gpu_statuses = await lifecycle_manager.get_all_gpu_statuses()
+        hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
         status_info = await lifecycle_manager.get_status()
         available_models = lifecycle_manager.config_manager.models.models
         return templates.TemplateResponse(
@@ -247,12 +269,43 @@ async def unload_model_ui(
                 "request": request,
                 "status": status_info,
                 "gpu_statuses": gpu_statuses,
+                "hardware_gpu_status": hardware_gpu_status,
                 "available_models": available_models,
                 "message": f"Failed to unload model from GPU {gpu_id}: {str(e)}",
                 "message_type": "error"
             }
         )
 
+
+@router.get("/dashboard/refresh", include_in_schema=False)
+async def refresh_dashboard(
+    request: Request,
+    user: User = Depends(get_current_user_from_session),
+    lifecycle_manager: ModelLifecycleManager = Depends(get_lifecycle_manager)
+):
+    """Refresh dashboard content (HTMX endpoint for auto-refresh)."""
+    # Get current model status
+    status_info = await lifecycle_manager.get_status()
+    
+    # Get GPU statuses (for multi-GPU support)
+    gpu_statuses = await lifecycle_manager.get_all_gpu_statuses()
+    
+    # Get hardware GPU detection status
+    hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
+    
+    # Get available models
+    available_models = lifecycle_manager.config_manager.models.models
+    
+    return templates.TemplateResponse(
+        "partials/dashboard_content.html",
+        {
+            "request": request,
+            "status": status_info,
+            "gpu_statuses": gpu_statuses,
+            "hardware_gpu_status": hardware_gpu_status,
+            "available_models": available_models
+        }
+    )
 
 @router.post("/dashboard/switch-model", include_in_schema=False)
 async def switch_model_ui(

@@ -19,31 +19,44 @@
                 <input type="hidden" name="gpu_id" x-model="selectedGpus.join(',') || '0'">
                 
                 <div class="mb-2">
-<label class="block text-xs font-medium text-gray-700 mb-1">Select GPU:</label>
-                    <div class="flex gap-2">
-                        <!-- GPU 0 Toggle -->
-                        <button type="button"
-                                @click="selectedGpus.includes('0') 
-                                        ? selectedGpus = selectedGpus.filter(g => g !== '0')
-                                        : selectedGpus.push('0')"
-                                :class="selectedGpus.includes('0') 
-                                        ? 'bg-blue-500 text-white' 
-                                        : 'bg-gray-200 text-gray-700'"
-                                class="px-3 py-1 rounded-lg text-xs font-medium transition hover:shadow">
-                            GPU 0
-                        </button>
-                        
-                        <!-- GPU 1 Toggle -->
-                        <button type="button"
-                                @click="selectedGpus.includes('1') 
-                                        ? selectedGpus = selectedGpus.filter(g => g !== '1')
-                                        : selectedGpus.push('1')"
-                                :class="selectedGpus.includes('1') 
-                                        ? 'bg-blue-500 text-white' 
-                                        : 'bg-gray-200 text-gray-700'"
-                                class="px-3 py-1 rounded-lg text-xs font-medium transition hover:shadow">
-                            GPU 1
-                        </button>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Select GPU{% if hardware_gpu_status and hardware_gpu_status.gpu_count > 1 %}(s){% endif %}:
+                    </label>
+                    <div class="flex gap-2 flex-wrap">
+                        {% if hardware_gpu_status and hardware_gpu_status.gpu_count > 0 %}
+                            <!-- Dynamically generate GPU buttons based on detected GPU count -->
+                            {% for gpu_idx in range(hardware_gpu_status.gpu_count) %}
+                                {% set hw_gpu = hardware_gpu_status.gpus[gpu_idx] if hardware_gpu_status.gpus|length > gpu_idx else none %}
+                                {% set gpu_occupied = hw_gpu and hw_gpu.state == 'occupied_by_others' %}
+                                {% set gpu_running = gpu_statuses and gpu_statuses.get('gpu' ~ gpu_idx) %}
+                                {% set gpu_used_in_multi = gpu_statuses and gpu_statuses.get('both') and (gpu_idx == 0 or gpu_idx == 1) %}
+                                {% set is_disabled = gpu_occupied or gpu_running or gpu_used_in_multi %}
+                                <button type="button"
+                                        {% if is_disabled %}disabled{% endif %}
+                                        @click="if (!{{ 'true' if is_disabled else 'false' }}) {
+                                                selectedGpus.includes('{{ gpu_idx }}') 
+                                                ? selectedGpus = selectedGpus.filter(g => g !== '{{ gpu_idx }}')
+                                                : selectedGpus.push('{{ gpu_idx }}')
+                                        }"
+                                        :class="selectedGpus.includes('{{ gpu_idx }}') && !{{ 'true' if is_disabled else 'false' }}
+                                                ? 'bg-blue-500 text-white' 
+                                                : 'bg-gray-200 text-gray-700'"
+                                        class="px-3 py-1 rounded-lg text-xs font-medium transition {% if not is_disabled %}hover:shadow{% endif %} {% if is_disabled %}opacity-50 cursor-not-allowed{% endif %}"
+                                        {% if gpu_occupied %}title="GPU {{ gpu_idx }} is occupied by another process"
+                                        {% elif gpu_running %}title="GPU {{ gpu_idx }} is currently running model: {{ gpu_running.model_name }}"
+                                        {% elif gpu_used_in_multi %}title="GPU {{ gpu_idx }} is being used in multi-GPU mode"{% endif %}>
+                                    GPU {{ gpu_idx }}{% if gpu_occupied %} 🔒{% elif gpu_running or gpu_used_in_multi %} ⚡{% endif %}
+                                </button>
+                            {% endfor %}
+                        {% else %}
+                            <!-- CPU fallback when no GPU detected -->
+                            <button type="button"
+                                    @click="selectedGpus = ['cpu']"
+                                    :class="selectedGpus.includes('cpu') ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'"
+                                    class="px-3 py-1 rounded-lg text-xs font-medium transition hover:shadow">
+                                CPU
+                            </button>
+                        {% endif %}
                     </div>
 <p class="text-xs text-gray-500 mt-1">
                         Selected: <span x-text="selectedGpus.length > 0 ? 'GPU ' + selectedGpus.join(',') : 'None'"></span>
