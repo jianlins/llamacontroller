@@ -28,6 +28,7 @@ jobs:
 
       - name: Get current version
         id: get_version
+        shell: bash
         run: |
           VERSION_FILE="src/llamacontroller/_version.py"
           VERSION="0.1.0"
@@ -38,6 +39,7 @@ jobs:
 
       - name: Bump version if needed
         if: ${{ github.event.inputs.bump_version == 'true' }}
+        shell: bash
         run: |
           VERSION_FILE="src/llamacontroller/_version.py"
           VERSION="${{ steps.get_version.outputs.version }}"
@@ -55,6 +57,7 @@ jobs:
 
       - name: Prepare release name
         id: prep_release
+        shell: bash
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
           RELEASE_NAME="llamacontroller_${VERSION}"
