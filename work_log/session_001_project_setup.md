@@ -65,8 +65,8 @@
 
 ## 注意事项
 - 本地环境已设置 llama.cpp conda 环境
-- llama.cpp 位置: C:\Users\VHASLCShiJ\software\llamacpp
-- 模型位置: C:\Users\VHASLCShiJ\software\ggufmodels
+- llama.cpp 位置: C:\Users\NLPDev\software\llamacpp
+- 模型位置: C:\Users\NLPDev\software\ggufmodels
 - 可用模型:
   - Phi-4-reasoning-plus-UD-IQ1_M.gguf (3.57 GB)
   - Qwen3-Coder-30B-A3B-Instruct-UD-TQ1_0.gguf (7.46 GB)

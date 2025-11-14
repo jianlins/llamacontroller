@@ -114,7 +114,7 @@ Enable users to select which GPU(s) to use for model loading, with support for l
 models:
   - id: "phi-4-reasoning"
     name: "Phi-4 Reasoning Plus"
-    path: "C:\\Users\\VHASLCShiJ\\software\\ggufmodels\\Phi-4-reasoning-plus-UD-IQ1_M.gguf"
+    path: "C:\\Users\\NLPDev\\software\\ggufmodels\\Phi-4-reasoning-plus-UD-IQ1_M.gguf"
     gpu_config:
       mode: "single"  # Options: "single", "both"
       gpu_id: 0       # For single mode: 0 or 1; ignored for both mode
@@ -145,7 +145,7 @@ models:
 ```yaml
 # config/llamacpp-config.yaml
 llama_cpp:
-  executable_path: "C:\\Users\\VHASLCShiJ\\software\\llamacpp\\llama-server.exe"
+  executable_path: "C:\\Users\\NLPDev\\software\\llamacpp\\llama-server.exe"
   default_host: "127.0.0.1"
   gpu_ports:
     gpu0: 8081

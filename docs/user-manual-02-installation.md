@@ -26,10 +26,10 @@ pip install -r requirements.txt
 ## Step 3: Download llama.cpp and Models
 
 - Place llama.cpp binaries in:  
-  `C:\Users\VHASLCShiJ\software\llamacpp` (Windows)  
+  `C:\Users\NLPDev\software\llamacpp` (Windows)  
   `/path/to/llama.cpp` (Linux/macOS)
 - Place GGUF model files in:  
-  `C:\Users\VHASLCShiJ\software\ggufmodels`
+  `C:\Users\NLPDev\software\ggufmodels`
 
 ## Step 4: Prepare Configuration Files
 
@@ -45,8 +45,8 @@ Refer to example configs in the design documents.
 
 ```bash
 # Windows (PowerShell)
-$env:LLAMACPP_PATH = "C:\Users\VHASLCShiJ\software\llamacpp\llama-server.exe"
-$env:MODELS_PATH = "C:\Users\VHASLCShiJ\software\ggufmodels"
+$env:LLAMACPP_PATH = "C:\Users\NLPDev\software\llamacpp\llama-server.exe"
+$env:MODELS_PATH = "C:\Users\NLPDev\software\ggufmodels"
 $env:LLAMACONTROLLER_CONFIG = ".\config"
 ```
 
@@ -66,12 +66,12 @@ llamacontroller/
 
 - Test llama.cpp binary:
   ```bash
-  cd C:\Users\VHASLCShiJ\software\llamacpp
+  cd C:\Users\NLPDev\software\llamacpp
   .\llama-server.exe --help
   ```
 - List available models:
   ```bash
-  Get-ChildItem -Path "C:\Users\VHASLCShiJ\software\ggufmodels" -Filter "*.gguf"
+  Get-ChildItem -Path "C:\Users\NLPDev\software\ggufmodels" -Filter "*.gguf"
   ```
 - Start the controller and verify API/UI access.
 

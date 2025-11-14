@@ -37,14 +37,14 @@ conda activate llama.cpp
 The following paths are configured for local development and testing:
 
 #### llama.cpp Installation
-- **Location**: `C:\Users\VHASLCShiJ\software\llamacpp`
+- **Location**: `C:\Users\NLPDev\software\llamacpp`
 - **Contents**: 
   - llama-server.exe (or llama-server)
   - llama-cli.exe (or llama-cli)
   - Other llama.cpp binaries and dependencies
 
 #### Model Repository
-- **Location**: `C:\Users\VHASLCShiJ\software\ggufmodels`
+- **Location**: `C:\Users\NLPDev\software\ggufmodels`
 - **Contents**: GGUF model files for testing
 - **Available Models**: 
   - `Phi-4-reasoning-plus-UD-IQ1_M.gguf` (3.57 GB)
@@ -58,7 +58,7 @@ When testing, create the following configuration files:
 
 \\\yaml
 llama_cpp:
-  executable_path: "C:\\Users\\VHASLCShiJ\\software\\llamacpp\\llama-server.exe"
+  executable_path: "C:\\Users\\NLPDev\\software\\llamacpp\\llama-server.exe"
   default_host: "127.0.0.1"
   default_port: 8080
   log_level: "info"
@@ -78,7 +78,7 @@ executable_path: "/path/to/llama.cpp/llama-server"
 models:
   - id: "phi-4-reasoning"
     name: "Phi-4 Reasoning Plus"
-    path: "C:\\Users\\VHASLCShiJ\\software\\ggufmodels\\Phi-4-reasoning-plus-UD-IQ1_M.gguf"
+    path: "C:\\Users\\NLPDev\\software\\ggufmodels\\Phi-4-reasoning-plus-UD-IQ1_M.gguf"
     parameters:
       n_ctx: 16384  # Phi-4 supports long context
       n_gpu_layers: 33  # Adjust based on your GPU (0 for CPU-only)
@@ -94,7 +94,7 @@ models:
       
   - id: "qwen3-coder-30b"
     name: "Qwen3 Coder 30B Instruct"
-    path: "C:\\Users\\VHASLCShiJ\\software\\ggufmodels\\Qwen3-Coder-30B-A3B-Instruct-UD-TQ1_0.gguf"
+    path: "C:\\Users\\NLPDev\\software\\ggufmodels\\Qwen3-Coder-30B-A3B-Instruct-UD-TQ1_0.gguf"
     parameters:
       n_ctx: 8192  # Qwen supports long context
       n_gpu_layers: 0  # Large model - adjust based on VRAM
@@ -132,7 +132,7 @@ authentication:
 
 \\\powershell
 # Test if llama-server exists and is executable
-C:\Users\VHASLCShiJ\software\llamacpp\llama-server.exe --version
+C:\Users\NLPDev\software\llamacpp\llama-server.exe --version
 \\\
 
 Expected output: Version information from llama.cpp
@@ -141,7 +141,7 @@ Expected output: Version information from llama.cpp
 
 \\\powershell
 # List all GGUF files
-Get-ChildItem -Path "C:\Users\VHASLCShiJ\software\ggufmodels" -Filter "*.gguf"
+Get-ChildItem -Path "C:\Users\NLPDev\software\ggufmodels" -Filter "*.gguf"
 \\\
 
 Expected output: List of .gguf model files
@@ -150,8 +150,8 @@ Expected output: List of .gguf model files
 
 \\\powershell
 # Manually test loading a model with llama-server
-cd C:\Users\VHASLCShiJ\software\llamacpp
-.\llama-server.exe -m "C:\Users\VHASLCShiJ\software\ggufmodels\your-model.gguf" --port 8080
+cd C:\Users\NLPDev\software\llamacpp
+.\llama-server.exe -m "C:\Users\NLPDev\software\ggufmodels\your-model.gguf" --port 8080
 \\\
 
 Then in another terminal:
@@ -196,8 +196,8 @@ For enhanced flexibility, you can use environment variables:
 
 \\\powershell
 # PowerShell
-$env:LLAMACPP_PATH = "C:\Users\VHASLCShiJ\software\llamacpp\llama-server.exe"
-$env:MODELS_PATH = "C:\Users\VHASLCShiJ\software\ggufmodels"
+$env:LLAMACPP_PATH = "C:\Users\NLPDev\software\llamacpp\llama-server.exe"
+$env:MODELS_PATH = "C:\Users\NLPDev\software\ggufmodels"
 $env:LLAMACONTROLLER_CONFIG = ".\config"
 \\\
 
@@ -230,8 +230,8 @@ To understand what parameters to use for your models:
 
 \\\powershell
 # Use llama.cpp tools to inspect model
-cd C:\Users\VHASLCShiJ\software\llamacpp
-.\llama-cli.exe -m "C:\Users\VHASLCShiJ\software\ggufmodels\your-model.gguf" --help
+cd C:\Users\NLPDev\software\llamacpp
+.\llama-cli.exe -m "C:\Users\NLPDev\software\ggufmodels\your-model.gguf" --help
 \\\
 
 ## Next Steps
