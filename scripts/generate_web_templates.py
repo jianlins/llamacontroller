@@ -93,7 +93,7 @@ TEMPLATES = {
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8 flex justify-between items-center">
-        <div><h1 class="text-3xl font-bold text-gray-900">系统日志</h1>
+        <div><h1 class="text-3xl font-bold text-gray-900">System Log</h1>
             <p class="mt-2 text-gray-600">查看 llama.cpp 服务器日志</p></div>
         <button hx-get="/logs/refresh" hx-target="#logs-content" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">刷新日志</button>
     </div>
@@ -103,12 +103,12 @@ TEMPLATES = {
 
     "partials/model_status.html": """<div class="bg-white shadow sm:rounded-lg">
     <div class="px-4 py-5 sm:p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">当前模型状态</h3>
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Current Model Status</h3>
         {% if current_model %}
         <div class="bg-green-50 border border-green-200 rounded-md p-4">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-green-800">模型已加载</p>
+                    <p class="text-sm font-medium text-green-800">Model loaded</p>
                     <p class="text-lg font-bold text-green-900 mt-1">{{ current_model.name }}</p>
                     <p class="text-sm text-green-700 mt-1">ID: {{ current_model.id }}</p>
                 </div>
@@ -119,8 +119,8 @@ TEMPLATES = {
         </div>
         {% else %}
         <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-            <p class="text-sm font-medium text-yellow-800">当前无模型加载</p>
-            <p class="text-sm text-yellow-700 mt-1">请从下方列表中选择一个模型加载</p>
+            <p class="text-sm font-medium text-yellow-800">No Model Loaded Currently</p>
+            <p class="text-sm text-yellow-700 mt-1">Please select a model to load from the list below</p>
         </div>
         {% endif %}
     </div>

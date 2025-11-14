@@ -4,7 +4,7 @@
     
     {% if message_type == 'error' and server_logs %}
     <div class="mt-3 border-t border-red-300 pt-3">
-        <p class="text-sm font-medium text-red-900 mb-2">服务器日志输出:</p>
+<p class="text-sm font-medium text-red-900 mb-2">Server Log Output:</p>
         <div class="bg-gray-900 text-gray-100 rounded p-3 text-xs font-mono overflow-x-auto max-h-96 overflow-y-auto">
             {% for log in server_logs %}
             <div class="mb-1">{{ log }}</div>
@@ -18,7 +18,7 @@
 <div id="model-status-container">
     <div class="bg-white shadow sm:rounded-lg">
         <div class="px-4 py-5 sm:p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">GPU 状态</h3>
+<h3 class="text-lg font-medium text-gray-900 mb-4">GPU Status</h3>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <!-- GPU 0 Status -->
@@ -26,20 +26,20 @@
                     <div class="flex items-center justify-between mb-2">
                         <h4 class="font-semibold text-gray-900">GPU 0</h4>
                         {% if gpu_statuses and gpu_statuses.gpu0 %}
-                        <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">运行中</span>
+<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Running</span>
                         {% else %}
-                        <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">空闲</span>
+<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">Idle</span>
                         {% endif %}
                     </div>
                     {% if gpu_statuses and gpu_statuses.gpu0 %}
-                    <p class="text-sm text-gray-600">模型: {{ gpu_statuses.gpu0.model_name }}</p>
-                    <p class="text-xs text-gray-500">端口: {{ gpu_statuses.gpu0.port }}</p>
+<p class="text-sm text-gray-600">Model: {{ gpu_statuses.gpu0.model_name }}</p>
+                    <p class="text-xs text-gray-500">Port: {{ gpu_statuses.gpu0.port }}</p>
                     <form hx-post="/dashboard/unload-model" hx-target="#dashboard-content" hx-disabled-elt="button" class="mt-2">
                         <input type="hidden" name="gpu_id" value="0">
-                        <button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">卸载模型</button>
+<button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Unload Model</button>
                     </form>
                     {% else %}
-                    <p class="text-sm text-gray-400">无模型加载</p>
+                    <p class="text-sm text-gray-400">No Model Loaded</p>
                     {% endif %}
                 </div>
                 
@@ -48,20 +48,20 @@
                     <div class="flex items-center justify-between mb-2">
                         <h4 class="font-semibold text-gray-900">GPU 1</h4>
                         {% if gpu_statuses and gpu_statuses.gpu1 %}
-                        <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">运行中</span>
+<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Running</span>
                         {% else %}
-                        <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">空闲</span>
+<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">Idle</span>
                         {% endif %}
                     </div>
                     {% if gpu_statuses and gpu_statuses.gpu1 %}
-                    <p class="text-sm text-gray-600">模型: {{ gpu_statuses.gpu1.model_name }}</p>
-                    <p class="text-xs text-gray-500">端口: {{ gpu_statuses.gpu1.port }}</p>
+<p class="text-sm text-gray-600">Model: {{ gpu_statuses.gpu1.model_name }}</p>
+<p class="text-xs text-gray-500">Port: {{ gpu_statuses.gpu1.port }}</p>
                     <form hx-post="/dashboard/unload-model" hx-target="#dashboard-content" hx-disabled-elt="button" class="mt-2">
                         <input type="hidden" name="gpu_id" value="1">
-                        <button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">卸载模型</button>
+<button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Unload Model</button>
                     </form>
                     {% else %}
-                    <p class="text-sm text-gray-400">无模型加载</p>
+<p class="text-sm text-gray-400">No Model Loaded</p>
                     {% endif %}
                 </div>
             </div>
@@ -70,14 +70,14 @@
             {% if gpu_statuses and gpu_statuses.both %}
             <div class="mt-4 border rounded-lg p-4 bg-blue-50 border-blue-200">
                 <div class="flex items-center justify-between mb-2">
-                    <h4 class="font-semibold text-gray-900">多 GPU (0,1)</h4>
-                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">运行中</span>
+<h4 class="font-semibold text-gray-900">Multi GPU (0,1)</h4>
+<span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">Running</span>
                 </div>
-                <p class="text-sm text-gray-600">模型: {{ gpu_statuses.both.model_name }}</p>
-                <p class="text-xs text-gray-500">端口: {{ gpu_statuses.both.port }}</p>
+<p class="text-sm text-gray-600">Model: {{ gpu_statuses.both.model_name }}</p>
+<p class="text-xs text-gray-500">Port: {{ gpu_statuses.both.port }}</p>
                 <form hx-post="/dashboard/unload-model" hx-target="#dashboard-content" hx-disabled-elt="button" class="mt-2">
                     <input type="hidden" name="gpu_id" value="0,1">
-                    <button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">卸载模型</button>
+<button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Unload Model</button>
                 </form>
             </div>
             {% endif %}
@@ -86,7 +86,7 @@
 </div>
 
 <div class="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
-    <div class="px-4 py-5 sm:px-6"><h3 class="text-lg font-medium text-gray-900">可用模型</h3></div>
+<div class="px-4 py-5 sm:px-6"><h3 class="text-lg font-medium text-gray-900">Available Models</h3></div>
     <div class="border-t border-gray-200">
         <ul class="divide-y divide-gray-200">
             {% include "partials/model_list.html" %}

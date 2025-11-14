@@ -1,52 +1,52 @@
 {% extends "base.html" %}
-{% block title %}API令牌管理 - LlamaController{% endblock %}
+{% block title %}API Token Management - LlamaController{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900">API 令牌管理</h1>
-        <p class="mt-2 text-gray-600">创建和管理 API 访问令牌</p>
+<h1 class="text-3xl font-bold text-gray-900">API Token Management</h1>
+<p class="mt-2 text-gray-600">Create and manage API access tokens</p>
     </div>
     
     <div class="bg-white shadow sm:rounded-lg mb-6">
         <div class="px-4 py-5 sm:p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">创建新令牌</h3>
+<h3 class="text-lg font-medium text-gray-900 mb-4">Create New Token</h3>
             <form hx-post="/tokens/create" hx-target="#token-list" class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">令牌名称</label>
+<label class="block text-sm font-medium text-gray-700">Token Name</label>
                     <input type="text" name="token_name" required 
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
-                           placeholder="例如: 我的应用令牌">
+placeholder="e.g.: My App Token">
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">令牌值（可选）</label>
+<label class="block text-sm font-medium text-gray-700">Token Value (Optional)</label>
                     <div class="mt-1 flex rounded-md shadow-sm">
                         <input type="text" name="token_value" id="token_value"
                                class="flex-1 rounded-none rounded-l-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono" 
-                               placeholder="留空自动生成，或输入自定义值">
+placeholder="Leave blank to auto-generate, or enter a custom value">
                         <button type="button" id="generate-token-btn"
                                 class="inline-flex items-center px-4 py-2 border border-l-0 border-gray-300 bg-gray-50 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-r-md">
                             <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                             </svg>
-                            生成
+Generate
                         </button>
                     </div>
                     <p class="mt-1 text-sm text-gray-500">
-                        留空将自动生成 43 字符的安全令牌。自定义值可以更短但安全性较低。
+Leave blank to auto-generate a 43-character secure token. Custom values may be shorter but less secure.
                     </p>
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">过期天数（可选）</label>
+<label class="block text-sm font-medium text-gray-700">Expiration Days (Optional)</label>
                     <input type="number" name="expires_days" 
                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
-                           placeholder="留空表示永不过期" min="1" max="365">
+placeholder="Leave blank for never expire" min="1" max="365">
                 </div>
                 
-                <button type="submit" 
+<button type="submit" 
                         class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
-                    创建令牌
+                    Create Token
                 </button>
             </form>
         </div>

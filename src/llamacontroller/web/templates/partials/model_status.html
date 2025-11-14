@@ -6,18 +6,18 @@
 
 <div class="bg-white shadow sm:rounded-lg">
     <div class="px-4 py-5 sm:p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">当前模型状态</h3>
+<h3 class="text-lg font-medium text-gray-900 mb-4">Current Model Status</h3>
         {% if status and status.model_id %}
         <div class="bg-green-50 border border-green-200 rounded-md p-4">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-green-800">模型已加载</p>
+<p class="text-sm font-medium text-green-800">Model Loaded</p>
                     <p class="text-lg font-bold text-green-900 mt-1">{{ status.model_name }}</p>
                     <p class="text-sm text-green-700 mt-1">ID: {{ status.model_id }}</p>
                 </div>
                 <div class="flex space-x-2">
                     <button hx-post="/dashboard/unload-model" hx-target="#model-status-container" hx-disabled-elt="this" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span class="unload-button-text">卸载模型</span>
+<span class="unload-button-text">Unload Model</span>
                         <span class="htmx-indicator ml-2">
                             <svg class="animate-spin h-4 w-4 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -30,8 +30,8 @@
         </div>
         {% else %}
         <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-            <p class="text-sm font-medium text-yellow-800">当前无模型加载</p>
-            <p class="text-sm text-yellow-700 mt-1">请从下方列表中选择一个模型加载</p>
+<p class="text-sm font-medium text-yellow-800">No Model Loaded</p>
+<p class="text-sm text-yellow-700 mt-1">Please select a model from the list below to load</p>
         </div>
         {% endif %}
     </div>

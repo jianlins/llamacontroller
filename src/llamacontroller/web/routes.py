@@ -472,3 +472,11 @@ async def refresh_logs(
             "logs": logs
         }
     )
+
+@router.get("/api-ui", include_in_schema=False)
+async def api_ui_redirect(
+    request: Request,
+    user: User = Depends(get_current_user_from_session)
+):
+    """Redirect to FastAPI interactive API documentation."""
+    return RedirectResponse(url="/docs", status_code=status.HTTP_302_FOUND)

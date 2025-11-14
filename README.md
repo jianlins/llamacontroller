@@ -14,12 +14,14 @@ LlamaController provides a secure, web-based interface to manage llama.cpp insta
 - **Secure Access**: Protected by authentication with token-based API access
 - **Multi-tenancy Support**: Different tokens for different applications/users
 - **Web Interface**: User-friendly dashboard for model management
+- **Multi-GPU Support**: Load models on GPU 0, GPU 1, or both GPUs (in progress)
 
 ## 📋 Prerequisites
 
 - Python 3.8+ (Conda environment recommended)
 - llama.cpp installed with `llama-server` executable
 - GGUF model files
+- Optional: Multiple NVIDIA GPUs for multi-GPU support
 
 ## 🚀 Quick Start
 
@@ -37,24 +39,34 @@ conda activate llama.cpp
 pip install -r requirements.txt
 ```
 
-### 3. Configure
-
-Copy the example configurations and edit with your paths:
+### 3. Initialize Database
 
 ```powershell
-# The config files are already in config/ directory
-# Edit them to match your system:
-# - config/llamacpp-config.yaml
-# - config/models-config.yaml
-# - config/auth-config.yaml
+python scripts/init_db.py
 ```
 
-### 4. Run LlamaController
+### 4. Configure
+
+Edit the configuration files in `config/` directory to match your system:
+- `config/llamacpp-config.yaml` - llama.cpp server settings
+- `config/models-config.yaml` - Available models configuration
+- `config/auth-config.yaml` - Authentication settings
+
+### 5. Start LlamaController
 
 ```powershell
-# Coming soon - main entry point
-python -m src.llamacontroller.main
+python run.py
 ```
+
+### 6. Access Web UI
+
+Open your browser and navigate to: `http://localhost:3000`
+
+**Default credentials:**
+- Username: `admin`
+- Password: `admin123`
+
+⚠️ **Important**: Change the default password after first login!
 
 ## 📁 Project Structure
 
@@ -62,62 +74,256 @@ python -m src.llamacontroller.main
 llamacontroller/
 ├── src/llamacontroller/       # Main application code
 │   ├── core/                  # Core business logic
+│   │   ├── config.py          # Configuration management
+│   │   ├── lifecycle.py       # Model lifecycle manager
+│   │   └── adapter.py         # llama.cpp process adapter
 │   ├── api/                   # REST API endpoints
+│   │   ├── management.py      # Management API
+│   │   ├── ollama.py          # Ollama-compatible API
+│   │   ├── auth.py            # Authentication endpoints
+│   │   └── tokens.py          # Token management
 │   ├── auth/                  # Authentication
+│   │   ├── service.py         # Auth service
+│   │   └── dependencies.py    # FastAPI auth dependencies
 │   ├── db/                    # Database models
+│   │   ├── models.py          # SQLAlchemy models
+│   │   └── crud.py            # Database operations
 │   ├── web/                   # Web UI
+│   │   ├── routes.py          # Web routes
+│   │   └── templates/         # Jinja2 templates
 │   ├── models/                # Pydantic models
+│   │   ├── config.py          # Configuration models
+│   │   ├── api.py             # API request/response models
+│   │   └── ollama.py          # Ollama schema models
 │   └── utils/                 # Utilities
 ├── config/                    # Configuration files
 ├── tests/                     # Test suite
 ├── docs/                      # Documentation
 ├── design/                    # Design documents
 ├── scripts/                   # Utility scripts
-├── logs/                      # Application logs
-└── data/                      # Runtime data
+├── logs/                      # Application logs (auto-created)
+└── data/                      # Runtime data (auto-created)
 ```
 
 ## 🔧 Development Status
 
-This project is currently under active development.
+**Current Version**: 0.8.0 (Beta)  
+**Project Status**: Core features complete, multi-GPU enhancement in progress
 
-### Phase 1: Foundation ✅ (In Progress)
+### ✅ Phase 1: Foundation (100% Complete)
 - [x] Project structure
-- [x] Configuration files
-- [ ] Configuration manager
-- [ ] llama.cpp process adapter
-- [ ] Logging system
+- [x] Configuration files (YAML-based)
+- [x] Configuration manager with Pydantic validation
+- [x] llama.cpp process adapter
+- [x] Logging system
 
-### Phase 2: Model Lifecycle 🔄 (Planned)
-- [ ] Model lifecycle manager
-- [ ] Load/unload/switch operations
+### ✅ Phase 2: Model Lifecycle (100% Complete)
+- [x] Model lifecycle manager
+- [x] Load/unload/switch operations
+- [x] Process health monitoring
+- [x] Auto-restart on crash
 
-### Phase 3: API Layer 🔄 (Planned)
-- [ ] FastAPI application
-- [ ] Ollama-compatible endpoints
+### ✅ Phase 3: REST API Layer (100% Complete)
+- [x] FastAPI application
+- [x] Ollama-compatible endpoints
+  - [x] `/api/generate` - Text generation
+  - [x] `/api/chat` - Chat completion
+  - [x] `/api/tags` - List models
+  - [x] `/api/show` - Show model info
+  - [x] `/api/ps` - Running models
+- [x] Management API endpoints
+  - [x] `/api/v1/models/load` - Load model
+  - [x] `/api/v1/models/unload` - Unload model
+  - [x] `/api/v1/models/status` - Model status
+- [x] Request/response streaming support
+- [x] Automatic OpenAPI documentation at `/docs`
 
-### Phase 4: Authentication 🔄 (Planned)
-- [ ] User authentication
-- [ ] API token system
+### ✅ Phase 4: Authentication (100% Complete)
+- [x] SQLite database with SQLAlchemy
+- [x] User authentication (bcrypt password hashing)
+- [x] Session-based authentication for Web UI
+- [x] API token system with CRUD operations
+- [x] Token validation middleware
+- [x] Audit logging
+- [x] Security features (rate limiting, login lockout)
 
-### Phase 5: Web UI 🔄 (Planned)
-- [ ] Dashboard interface
-- [ ] Token management
+### ✅ Phase 5: Web UI (100% Complete)
+- [x] Modern responsive interface (Tailwind CSS + HTMX + Alpine.js)
+- [x] Login page with authentication
+- [x] Dashboard for model management
+- [x] Load/unload/switch model controls
+- [x] API token management interface
+- [x] Server logs viewer
+- [x] Real-time status updates via HTMX
 
-### Phase 6: Testing & Documentation 🔄 (Planned)
-- [ ] Comprehensive testing
-- [ ] User documentation
+### 🔄 Phase 6: Multi-GPU Enhancement (40% Complete)
+**Goal**: Support loading models on specific GPUs (GPU 0, GPU 1, or both)
+
+- [x] GPU configuration models (ports: 8081, 8088)
+- [x] Adapter GPU parameter support (tensor-split)
+- [x] Web UI GPU selection interface (toggle buttons)
+- [x] Dashboard GPU status display (per-GPU cards)
+- [ ] Lifecycle manager multi-instance support
+- [ ] API endpoints GPU parameter support
+- [ ] Request routing to correct GPU instance
+- [ ] Comprehensive multi-GPU testing
+
+**Multi-GPU Features:**
+- Load different models on different GPUs simultaneously
+- Each GPU uses its own port (GPU 0: 8081, GPU 1: 8088)
+- Support for single GPU or both GPUs with tensor splitting
+- Web UI shows status of each GPU independently
+
+### 📝 Phase 7: Testing & Documentation (70% Complete)
+- [x] Unit tests for core modules
+- [x] Integration tests for API and auth
+- [x] Configuration validation tests
+- [x] User documentation
+  - [x] QUICKSTART.md
+  - [x] API_TEST_REPORT.md
+  - [x] TOKEN_AUTHENTICATION_GUIDE.md
+  - [x] PARAMETER_CONFIGURATION.md
+- [ ] Multi-GPU documentation
+- [ ] Deployment guide
+- [ ] Performance tuning guide
 
 ## 📖 Documentation
 
+### User Guides
+- [Quick Start Guide](docs/QUICKSTART.md) - Get started quickly
+- [Token Authentication](docs/TOKEN_AUTHENTICATION_GUIDE.md) - API token usage
+- [Parameter Configuration](docs/PARAMETER_CONFIGURATION.md) - Model parameters
+
+### Technical Documentation
 - [Project Overview](design/01-overview.md)
+- [Enhancement Requirements](design/02-enhancement-requirements.md)
 - [Development Setup](design/03-development-setup.md)
 - [Architecture](design/04-architecture.md)
 - [Implementation Guide](design/05-implementation-guide.md)
+- [Testing Best Practices](design/06-testing-best-practices.md)
+
+### Test Reports
+- [API Test Report](docs/API_TEST_REPORT.md)
+- [Authentication Test Report](docs/AUTH_TEST_REPORT.md)
+
+## 🛠️ API Usage Examples
+
+### Using Ollama-Compatible API
+
+```bash
+# List available models
+curl http://localhost:3000/api/tags
+
+# Generate completion
+curl -X POST http://localhost:3000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "phi-4-reasoning",
+    "prompt": "Explain quantum computing"
+  }'
+
+# Chat completion
+curl -X POST http://localhost:3000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "phi-4-reasoning",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+```
+
+### Using Management API
+
+```bash
+# Load a model
+curl -X POST http://localhost:3000/api/v1/models/load \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model_id": "phi-4-reasoning"}'
+
+# Get model status
+curl http://localhost:3000/api/v1/models/status \
+  -H "Authorization: Bearer YOUR_API_TOKEN"
+
+# Unload model
+curl -X POST http://localhost:3000/api/v1/models/unload \
+  -H "Authorization: Bearer YOUR_API_TOKEN"
+```
+
+## 🧪 Running Tests
+
+```powershell
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_api.py
+
+# Run with coverage
+pytest --cov=src/llamacontroller --cov-report=html
+
+# Run API tests
+python scripts/test_api_endpoints.py
+
+# Run authentication tests
+python scripts/test_auth_endpoints.py
+```
+
+## 🔒 Security Notes
+
+- Default admin credentials should be changed immediately
+- API tokens should be kept secure and not committed to version control
+- Use HTTPS in production environments
+- Configure CORS appropriately for production
+- Review audit logs regularly
+- Keep llama.cpp server on localhost only (not exposed externally)
+
+## 🚧 Known Limitations
+
+- Single model loaded at a time per GPU (multi-model support planned)
+- Multi-GPU feature requires lifecycle manager refactoring (in progress)
+- No GPU memory monitoring yet (planned)
+- Session timeout is fixed at 1 hour (configurable in future)
+
+## 🗺️ Roadmap
+
+### Short Term (v0.9)
+- [ ] Complete multi-GPU lifecycle manager support
+- [ ] GPU request routing logic
+- [ ] Multi-GPU integration tests
+- [ ] Multi-GPU documentation
+
+### Medium Term (v1.0)
+- [ ] GPU memory monitoring
+- [ ] Model preloading for faster switching
+- [ ] Advanced rate limiting
+- [ ] Prometheus metrics export
+
+### Long Term (v2.0+)
+- [ ] Multiple models per GPU
+- [ ] Distributed deployment support
+- [ ] Model download from HuggingFace
+- [ ] Automatic GPU selection based on load
+- [ ] Model quantization support
 
 ## 🤝 Contributing
 
-This project is currently in initial development. Contribution guidelines will be added soon.
+This project is currently in active development. Contributions are welcome!
+
+### Development Setup
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `pytest`
+5. Submit a pull request
+
+### Coding Standards
+- Follow PEP 8 style guide
+- Use type hints
+- Write docstrings for public functions
+- Add tests for new features
+- Update documentation
 
 ## 📝 License
 
@@ -127,9 +333,20 @@ To be determined.
 
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) - The underlying inference engine
 - [Ollama](https://ollama.ai/) - API specification inspiration
+- [FastAPI](https://fastapi.tiangolo.com/) - Web framework
+- [HTMX](https://htmx.org/) - Dynamic HTML interactions
+
+## 📞 Support
+
+For issues and questions:
+- Check the [documentation](docs/)
+- Review [work logs](work_log/) for implementation details
+- Open an issue on GitHub (when available)
 
 ---
 
-**Status**: Development Phase  
-**Version**: 0.1.0  
-**Last Updated**: 2025-11-12
+**Status**: Beta - Core features complete, multi-GPU in progress  
+**Version**: 0.8.0  
+**Last Updated**: 2025-11-13  
+**Python**: 3.8+  
+**License**: TBD

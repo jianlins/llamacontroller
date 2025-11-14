@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}系统日志 - LlamaController{% endblock %}
+{% block title %}System Logs - LlamaController{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8 flex justify-between items-center">
-        <div><h1 class="text-3xl font-bold text-gray-900">系统日志</h1>
-            <p class="mt-2 text-gray-600">查看 llama.cpp 服务器日志</p></div>
-        <button hx-get="/logs/refresh" hx-target="#logs-content" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">刷新日志</button>
+<div><h1 class="text-3xl font-bold text-gray-900">System Logs</h1>
+            <p class="mt-2 text-gray-600">View llama.cpp server logs</p></div>
+<button hx-get="/logs/refresh" hx-target="#logs-content" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Refresh Logs</button>
     </div>
     <div id="logs-content" hx-get="/logs/refresh" hx-trigger="load">{% include 'partials/logs_content.html' %}</div>
 </div>
