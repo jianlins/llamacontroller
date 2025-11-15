@@ -1,4 +1,4 @@
-name: Test Collection Check
+name: CI Pytest
 
 on:
   push:

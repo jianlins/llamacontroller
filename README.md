@@ -1,5 +1,13 @@
 # LlamaController
 
+[![Pytest](https://github.com/jianlins/llamacontroller/actions/workflows/test-collection.yml/badge.svg)](https://github.com/jianlins/llamacontroller/actions/workflows/test-collection.yml)
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
+[![Status](https://img.shields.io/badge/status-beta-yellow.svg)](https://github.com/jianlins/llamacontroller)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+
 ![项目截图](docs/image.png)
 
 A WebUI-based management system for llama.cpp model lifecycle with Ollama API compatibility.
@@ -346,7 +354,7 @@ This project is currently in active development. Contributions are welcome!
 
 ## 📝 License
 
-To be determined.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
@@ -368,4 +376,4 @@ For issues and questions:
 **Version**: 0.8.0  
 **Last Updated**: 2025-11-14  
 **Python**: 3.8+  
-**License**: TBD
+**License**: MIT
