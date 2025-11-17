@@ -699,17 +699,45 @@ class ModelLifecycleManager:
         """
         start_time = asyncio.get_event_loop().time()
         check_interval = 1.0
+        last_log_time = 0
+        
+        logger.info(f"Waiting for server to be ready (timeout: {timeout}s)...")
         
         while (asyncio.get_event_loop().time() - start_time) < timeout:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            
+            # Check if process is still alive
+            if adapter.process and adapter.process.poll() is not None:
+                logger.error("Server process died during startup")
+                # Print last few log lines to help diagnose
+                logs = adapter.get_logs(lines=10)
+                if logs:
+                    logger.error("Last log lines from server:")
+                    for log_line in logs[-10:]:
+                        logger.error(f"  {log_line}")
+                return False
+            
+            # Try health check
             is_healthy = await adapter.is_healthy()
             
             if is_healthy:
-                logger.info("Server is ready")
+                logger.info(f"Server is ready (took {elapsed:.1f}s)")
                 return True
+            
+            # Log progress every 5 seconds
+            if elapsed - last_log_time >= 5:
+                logger.info(f"Still waiting for server... ({elapsed:.0f}s elapsed)")
+                last_log_time = elapsed
             
             await asyncio.sleep(check_interval)
         
         logger.warning(f"Server did not become ready within {timeout}s")
+        # Print last few log lines to help diagnose
+        logs = adapter.get_logs(lines=20)
+        if logs:
+            logger.warning("Last log lines from server:")
+            for log_line in logs[-20:]:
+                logger.warning(f"  {log_line}")
         return False
     
     async def get_server_logs(

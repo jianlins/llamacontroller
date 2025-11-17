@@ -319,7 +319,18 @@ class LlamaCppAdapter:
         if self.http_client:
             try:
                 response = await self.http_client.get("/health", timeout=5.0)
-                return response.status_code == 200
+                if response.status_code == 200:
+                    return True
+                logger.debug(f"Health check returned status {response.status_code}")
+                return False
+            except httpx.ConnectError as e:
+                # Connection refused - server not ready yet
+                logger.debug(f"Health check connection failed (server may still be starting): {e}")
+                return False
+            except httpx.TimeoutException as e:
+                # Timeout - server may be loading model
+                logger.debug(f"Health check timeout (server may be loading model): {e}")
+                return False
             except Exception as e:
                 logger.debug(f"Health check failed: {e}")
                 return False
