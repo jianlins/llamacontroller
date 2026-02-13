@@ -15,7 +15,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Active (5m)
+                    Active (<span id="countdown-display">5:00</span>)
                 </span>
             </div>
         </div>
@@ -27,4 +27,54 @@
         {% include "partials/dashboard_content.html" %}
     </div>
 </div>
+
+<script>
+(function() {
+    // Refresh interval in seconds (5 minutes = 300 seconds)
+    const REFRESH_INTERVAL = 300;
+    let remainingSeconds = REFRESH_INTERVAL;
+    let countdownInterval = null;
+    
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return mins + ':' + secs.toString().padStart(2, '0');
+    }
+    
+    function updateDisplay() {
+        const displayElement = document.getElementById('countdown-display');
+        if (displayElement) {
+            displayElement.textContent = formatTime(remainingSeconds);
+        }
+    }
+    
+    function tick() {
+        remainingSeconds--;
+        if (remainingSeconds < 0) {
+            remainingSeconds = REFRESH_INTERVAL;
+        }
+        updateDisplay();
+    }
+    
+    function startCountdown() {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+        }
+        remainingSeconds = REFRESH_INTERVAL;
+        updateDisplay();
+        countdownInterval = setInterval(tick, 1000);
+    }
+    
+    // Start countdown on page load
+    startCountdown();
+    
+    // Reset countdown when HTMX refresh completes
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target && event.detail.target.id === 'dashboard-content') {
+            remainingSeconds = REFRESH_INTERVAL;
+            updateDisplay();
+        }
+    });
+})();
+</script>
 {% endblock %}

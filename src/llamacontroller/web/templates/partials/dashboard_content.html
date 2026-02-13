@@ -80,6 +80,9 @@
                                     </span>
                                 </p>
                                 {% endif %}
+                                {% if hw_gpu %}
+                                <p class="text-xs text-gray-500">GPU-Util: {{ hw_gpu.gpu_utilization }}%</p>
+                                {% endif %}
                                 <form hx-post="/dashboard/unload-model" hx-target="#dashboard-content" hx-disabled-elt="button" class="mt-2">
                                     <input type="hidden" name="gpu_id" value="{{ gpu_idx }}">
                                     <button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Unload Model</button>
@@ -87,6 +90,7 @@
                             {% elif hw_gpu and hw_gpu.state == 'occupied_by_others' %}
                                 <p class="text-sm text-yellow-700">⚠️ Occupied by external process</p>
                                 <p class="text-xs text-gray-500">Memory: {{ hw_gpu.memory_used }}MiB / {{ hw_gpu.memory_total }}MiB</p>
+                                <p class="text-xs text-gray-500">GPU-Util: {{ hw_gpu.gpu_utilization }}%</p>
                                 {% if hw_gpu.process_info %}
                                     <p class="text-xs text-gray-500 mt-1">PID: {{ hw_gpu.process_info[0].pid }} ({{ hw_gpu.process_info[0].process_name }})</p>
                                 {% endif %}
@@ -94,6 +98,7 @@
                                 <p class="text-sm text-gray-400">No Model Loaded</p>
                                 {% if hw_gpu %}
                                     <p class="text-xs text-gray-500">Memory: {{ hw_gpu.memory_used }}MiB / {{ hw_gpu.memory_total }}MiB</p>
+                                    <p class="text-xs text-gray-500">GPU-Util: {{ hw_gpu.gpu_utilization }}%</p>
                                 {% endif %}
                             {% endif %}
                         </div>

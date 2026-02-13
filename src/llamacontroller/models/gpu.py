@@ -33,6 +33,7 @@ class GpuStatusResponse(BaseModel):
     select_enabled: bool = Field(..., description="Whether GPU can be selected for loading models")
     memory_used: int = Field(..., description="Used memory in MiB")
     memory_total: int = Field(..., description="Total memory in MiB")
+    gpu_utilization: int = Field(0, description="GPU utilization percentage (Volatile)")
 
 class AllGpuStatusResponse(BaseModel):
     """Response containing status of all GPUs."""

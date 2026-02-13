@@ -32,6 +32,7 @@ class GpuInfo:
     index: int
     memory_used: int  # Memory in MiB
     memory_total: int  # Memory in MiB
+    gpu_utilization: int = 0  # GPU utilization percentage
 
 @dataclass
 class GpuStatus:
@@ -43,6 +44,7 @@ class GpuStatus:
     select_enabled: bool = True
     memory_used: int = 0  # Memory in MiB
     memory_total: int = 0  # Memory in MiB
+    gpu_utilization: int = 0  # GPU utilization percentage
 
 class GpuDetector:
     """
@@ -213,15 +215,26 @@ class GpuDetector:
                     memory_used = int(memory_match.group(1))
                     memory_total = int(memory_match.group(2))
                     
+                    # Extract GPU utilization - appears after memory section as "X%" before "Default"
+                    # Format: |  0%   24C    P8   11W / 300W |      1MiB / 46068MiB |      30%      Default |
+                    # We need to find the percentage AFTER the memory section (third column)
+                    gpu_util = 0
+                    # Look for pattern: MiB | followed by spaces and a percentage
+                    util_match = re.search(r'MiB\s*\|\s*(\d+)%\s+\w+', line)
+                    if util_match:
+                        gpu_util = int(util_match.group(1))
+                    
                     gpu_list.append(GpuInfo(
                         index=current_gpu,
                         memory_used=memory_used,
-                        memory_total=memory_total
+                        memory_total=memory_total,
+                        gpu_utilization=gpu_util
                     ))
                     
                     logger.debug(
                         f"Parsed GPU {current_gpu}: "
-                        f"{memory_used}MiB / {memory_total}MiB"
+                        f"{memory_used}MiB / {memory_total}MiB, "
+                        f"GPU-Util: {gpu_util}%"
                     )
                     
                     current_gpu = None  # Reset for next GPU
@@ -322,7 +335,8 @@ class GpuDetector:
                             model_name=model_name,
                             select_enabled=True,
                             memory_used=gpu.memory_used,
-                            memory_total=gpu.memory_total
+                            memory_total=gpu.memory_total,
+                            gpu_utilization=gpu.gpu_utilization
                         )
                     else:
                         # Occupied by others
@@ -339,7 +353,8 @@ class GpuDetector:
                             process_info=gpu_processes if gpu_processes else None,
                             select_enabled=False,
                             memory_used=gpu.memory_used,
-                            memory_total=gpu.memory_total
+                            memory_total=gpu.memory_total,
+                            gpu_utilization=gpu.gpu_utilization
                         )
                 else:
                     # GPU is idle (memory usage below threshold)
@@ -352,7 +367,8 @@ class GpuDetector:
                         model_name=model_name,
                         select_enabled=True,
                         memory_used=gpu.memory_used,
-                        memory_total=gpu.memory_total
+                        memory_total=gpu.memory_total,
+                        gpu_utilization=gpu.gpu_utilization
                     )
                 
                 gpu_status_list.append(status)

@@ -832,7 +832,8 @@ class ModelLifecycleManager:
                 process_info=process_info_response,
                 select_enabled=gpu_status.select_enabled,
                 memory_used=gpu_status.memory_used,
-                memory_total=gpu_status.memory_total
+                memory_total=gpu_status.memory_total,
+                gpu_utilization=gpu_status.gpu_utilization
             ))
         
         # Count non-CPU GPUs

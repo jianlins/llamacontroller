@@ -47,7 +47,8 @@ def _convert_gpu_status(status) -> GpuStatusResponse:
         process_info=process_info,
         select_enabled=status.select_enabled,
         memory_used=status.memory_used,
-        memory_total=status.memory_total
+        memory_total=status.memory_total,
+        gpu_utilization=status.gpu_utilization
     )
 
 
