@@ -184,8 +184,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     Handle HTTP exceptions.
     
     For 401 Unauthorized on web UI routes, redirect to login page.
+    For HTMX requests, use HX-Redirect header to trigger full page redirect.
     For API routes, return JSON response.
     """
+    # Check if this is an HTMX request
+    is_htmx_request = request.headers.get("HX-Request") == "true"
+    
     # Check if this is a web UI request (not API)
     is_web_ui = (
         request.url.path.startswith("/dashboard") or
@@ -196,9 +200,27 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     
     # For 401 on web UI, redirect to login
     if exc.status_code == status.HTTP_401_UNAUTHORIZED and is_web_ui:
-        logger.info(f"Redirecting unauthorized request to login: {request.url.path}")
+        # Determine the redirect URL for next parameter
+        # For HTMX refresh requests, redirect to the main page (e.g., /dashboard) not the refresh endpoint
+        next_url = request.url.path
+        if next_url.endswith("/refresh"):
+            next_url = next_url.rsplit("/refresh", 1)[0]
+        
+        login_url = f"/login?error=Session expired, please login again&next={next_url}"
+        
+        logger.info(f"Redirecting unauthorized request to login: {request.url.path} (HTMX: {is_htmx_request})")
+        
+        # For HTMX requests, use HX-Redirect header to trigger full page redirect
+        # instead of content swap which would corrupt the page layout
+        if is_htmx_request:
+            return HTMLResponse(
+                content="",
+                status_code=200,  # HTMX requires 2xx status to process HX-Redirect
+                headers={"HX-Redirect": login_url}
+            )
+        
         return RedirectResponse(
-            url=f"/login?error=Please login first&next={request.url.path}",
+            url=login_url,
             status_code=status.HTTP_302_FOUND
         )
     

@@ -293,24 +293,38 @@ async def unload_model_ui(
 @router.get("/dashboard/refresh", include_in_schema=False)
 async def refresh_dashboard(
     request: Request,
-    user: User = Depends(get_current_user_from_session),
+    user: Optional[User] = Depends(get_optional_user_from_session),
     lifecycle_manager: ModelLifecycleManager = Depends(get_lifecycle_manager)
 ):
     """Refresh dashboard content (HTMX endpoint for auto-refresh)."""
-    print(f"[DEBUG] /dashboard/refresh endpoint called by user: {user.username}")
+    # Check if this is an HTMX request
+    is_htmx_request = request.headers.get("HX-Request") == "true"
+    
+    # If not an HTMX request, redirect to full dashboard page
+    # This handles direct browser navigation to /dashboard/refresh
+    if not is_htmx_request:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    
+    # Check if user session is valid - if not, redirect to login
+    # This is an HTMX endpoint, so we use HX-Redirect for full page navigation
+    if user is None:
+        logger.info("Session expired during dashboard refresh, redirecting to login")
+        return HTMLResponse(
+            content="",
+            status_code=200,  # HTMX requires 2xx status to process HX-Redirect
+            headers={"HX-Redirect": "/login?error=Session expired, please login again&next=/dashboard"}
+        )
+    
+    logger.debug(f"/dashboard/refresh endpoint called by user: {user.username}")
     
     # Get current model status
-    print(f"[DEBUG] Getting model status...")
     status_info = await lifecycle_manager.get_status()
     
     # Get GPU statuses (for multi-GPU support)
-    print(f"[DEBUG] Getting GPU statuses...")
     gpu_statuses = await lifecycle_manager.get_all_gpu_statuses()
     
     # Get hardware GPU detection status
-    print(f"[DEBUG] Calling detect_gpu_hardware()...")
     hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
-    print(f"[DEBUG] detect_gpu_hardware() completed, gpu_count={hardware_gpu_status.gpu_count}")
     
     # Get available models
     available_models = lifecycle_manager.config_manager.models.models
@@ -528,10 +542,28 @@ async def logs_page(
 @router.get("/logs/refresh", include_in_schema=False)
 async def refresh_logs(
     request: Request,
-    user: User = Depends(get_current_user_from_session),
+    user: Optional[User] = Depends(get_optional_user_from_session),
     lifecycle_manager: ModelLifecycleManager = Depends(get_lifecycle_manager)
 ):
     """Refresh logs (HTMX endpoint)."""
+    # Check if this is an HTMX request
+    is_htmx_request = request.headers.get("HX-Request") == "true"
+    
+    # If not an HTMX request, redirect to full logs page
+    # This handles direct browser navigation to /logs/refresh
+    if not is_htmx_request:
+        return RedirectResponse(url="/logs", status_code=status.HTTP_302_FOUND)
+    
+    # Check if user session is valid - if not, redirect to login
+    # This is an HTMX endpoint, so we use HX-Redirect for full page navigation
+    if user is None:
+        logger.info("Session expired during logs refresh, redirecting to login")
+        return HTMLResponse(
+            content="",
+            status_code=200,  # HTMX requires 2xx status to process HX-Redirect
+            headers={"HX-Redirect": "/login?error=Session expired, please login again&next=/logs"}
+        )
+    
     try:
         logs = await lifecycle_manager.get_server_logs(gpu_id=None, lines=100)
     except Exception as e:
