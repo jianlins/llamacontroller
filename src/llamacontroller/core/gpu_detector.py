@@ -25,6 +25,7 @@ class GpuProcessInfo:
     pid: int
     process_name: str
     used_memory: int  # Memory in MiB
+    user_id: Optional[str] = None  # User ID running the process
 
 @dataclass
 class GpuInfo:
@@ -241,6 +242,86 @@ class GpuDetector:
         
         return gpu_list
     
+    def _get_user_for_pid(self, pid: int) -> Optional[str]:
+        """
+        Get the user ID running a process by PID using tasklist command.
+        
+        On Windows, this uses `tasklist /FI "PID eq {pid}" /V` to get the user.
+        The command requires admin privileges to show user IDs for other users' processes.
+        
+        Args:
+            pid: Process ID to look up
+            
+        Returns:
+            User ID string if found, None otherwise
+        """
+        import platform
+        
+        if platform.system() != "Windows":
+            # On Linux/Unix, we could use `ps -o user= -p {pid}` but for now return None
+            try:
+                result = subprocess.run(
+                    ["ps", "-o", "user=", "-p", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip()
+            except Exception as e:
+                logger.debug(f"Failed to get user for PID {pid} on Linux: {e}")
+            return None
+        
+        try:
+            # Use tasklist with /V (verbose) flag to get user information
+            # The command needs to run with admin privileges to see other users' processes
+            command = f'tasklist /FI "PID eq {pid}" /V /FO CSV'
+            
+            logger.debug(f"Running tasklist command for PID {pid}")
+            
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                shell=True
+            )
+            
+            if result.returncode != 0:
+                logger.debug(f"tasklist command failed for PID {pid}: {result.stderr}")
+                return None
+            
+            # Parse CSV output
+            # Format: "Image Name","PID","Session Name","Session#","Mem Usage","Status","User Name","CPU Time","Window Title"
+            lines = result.stdout.strip().split('\n')
+            
+            if len(lines) < 2:
+                logger.debug(f"No process found for PID {pid}")
+                return None
+            
+            # Parse the data line (skip header)
+            import csv
+            from io import StringIO
+            
+            reader = csv.reader(StringIO(lines[1]))
+            row = next(reader, None)
+            
+            if row and len(row) >= 7:
+                user_name = row[6]  # User Name is the 7th column (index 6)
+                if user_name and user_name != "N/A":
+                    logger.debug(f"Found user '{user_name}' for PID {pid}")
+                    return user_name
+            
+            logger.debug(f"Could not extract user from tasklist output for PID {pid}")
+            return None
+            
+        except subprocess.TimeoutExpired:
+            logger.warning(f"tasklist command timed out for PID {pid}")
+            return None
+        except Exception as e:
+            logger.debug(f"Failed to get user for PID {pid}: {e}")
+            return None
+
     def parse_gpu_processes(self, nvidia_smi_output: str) -> List[GpuProcessInfo]:
         """
         Parse GPU process information from nvidia-smi output.
@@ -282,16 +363,20 @@ class GpuDetector:
                 process_name = process_match.group(3).strip()
                 used_memory = int(process_match.group(4))
                 
+                # Get user ID for this process
+                user_id = self._get_user_for_pid(pid)
+                
                 process_list.append(GpuProcessInfo(
                     gpu_index=gpu_index,
                     pid=pid,
                     process_name=process_name,
-                    used_memory=used_memory
+                    used_memory=used_memory,
+                    user_id=user_id
                 ))
                 
                 logger.debug(
                     f"Parsed process: GPU {gpu_index}, PID {pid}, "
-                    f"{process_name}, {used_memory}MiB"
+                    f"{process_name}, {used_memory}MiB, User: {user_id}"
                 )
         
         return process_list

@@ -30,7 +30,8 @@ def _convert_process_info(process_info) -> GpuProcessInfoResponse:
         gpu_index=process_info.gpu_index,
         pid=process_info.pid,
         process_name=process_info.process_name,
-        used_memory=process_info.used_memory
+        used_memory=process_info.used_memory,
+        user_id=getattr(process_info, 'user_id', None)
     )
 
 

@@ -5,11 +5,24 @@
             <p class="text-sm font-medium text-indigo-600">{{ model.name }}</p>
             <p class="text-sm text-gray-500">ID: {{ model.id }}</p>
             <p class="text-xs text-gray-400 mt-1">{{ model.metadata.description }}</p>
+            {% if model_memory_estimates and model_memory_estimates.get(model.id) %}
+            <p class="text-xs text-gray-400">Est. GPU memory: {{ model_memory_estimates[model.id] }} MiB</p>
+            {% endif %}
         </div>
         <div class="ml-4">
-            {% if status and status.model_id and status.model_id == model.id %}
-<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Running</span>
-            {% else %}
+            {% set est_mb = model_memory_estimates.get(model.id, 0) if model_memory_estimates else 0 %}
+            {# Check which GPUs already have this exact model loaded #}
+            {% set loaded_on_gpus = [] %}
+            {% if gpu_statuses %}
+                {% for inst_key, inst in gpu_statuses.items() %}
+                    {% if inst and inst.model_id == model.id %}
+                        {% if loaded_on_gpus.append(inst.gpu_id|string) %}{% endif %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+            {% if loaded_on_gpus|length > 0 %}
+            <p class="text-xs text-green-600 font-medium mb-1">✓ Running on GPU {{ loaded_on_gpus|join(', ') }}</p>
+            {% endif %}
             <form hx-post="/dashboard/load-model" 
                   hx-target="#dashboard-content" 
                   hx-disabled-elt="button"
@@ -24,13 +37,12 @@
                     </label>
                     <div class="flex gap-2 flex-wrap">
                         {% if hardware_gpu_status and hardware_gpu_status.gpu_count > 0 %}
-                            <!-- Dynamically generate GPU buttons based on detected GPU count -->
                             {% for gpu_idx in range(hardware_gpu_status.gpu_count) %}
                                 {% set hw_gpu = hardware_gpu_status.gpus[gpu_idx] if hardware_gpu_status.gpus|length > gpu_idx else none %}
-                                {% set gpu_occupied = hw_gpu and hw_gpu.state == 'occupied_by_others' %}
-                                {% set gpu_running = gpu_statuses and gpu_statuses.get('gpu' ~ gpu_idx) %}
-                                {% set gpu_used_in_multi = gpu_statuses and gpu_statuses.get('both') and (gpu_idx == 0 or gpu_idx == 1) %}
-                                {% set is_disabled = gpu_occupied or gpu_running or gpu_used_in_multi %}
+                                {% set gpu_free_mb = (hw_gpu.memory_total - hw_gpu.memory_used) if hw_gpu else 0 %}
+                                {% set insufficient_memory = est_mb > 0 and gpu_free_mb < est_mb %}
+                                {% set already_loaded = gpu_idx|string in loaded_on_gpus %}
+                                {% set is_disabled = insufficient_memory or already_loaded %}
                                 <button type="button"
                                         {% if is_disabled %}disabled{% endif %}
                                         @click="if (!{{ 'true' if is_disabled else 'false' }}) {
@@ -42,14 +54,13 @@
                                                 ? 'bg-blue-500 text-white' 
                                                 : 'bg-gray-200 text-gray-700'"
                                         class="px-3 py-1 rounded-lg text-xs font-medium transition {% if not is_disabled %}hover:shadow{% endif %} {% if is_disabled %}opacity-50 cursor-not-allowed{% endif %}"
-                                        {% if gpu_occupied %}title="GPU {{ gpu_idx }} is occupied by another process"
-                                        {% elif gpu_running %}title="GPU {{ gpu_idx }} is currently running model: {{ gpu_running.model_name }}"
-                                        {% elif gpu_used_in_multi %}title="GPU {{ gpu_idx }} is being used in multi-GPU mode"{% endif %}>
-                                    GPU {{ gpu_idx }}{% if gpu_occupied %} 🔒{% elif gpu_running or gpu_used_in_multi %} ⚡{% endif %}
+                                        {% if already_loaded %}title="GPU {{ gpu_idx }}: model already loaded here"
+                                        {% elif insufficient_memory %}title="GPU {{ gpu_idx }}: insufficient memory ({{ gpu_free_mb }} MiB free, {{ est_mb }} MiB needed)"
+                                        {% else %}title="GPU {{ gpu_idx }}: {{ gpu_free_mb }} MiB free ({{ est_mb }} MiB needed)"{% endif %}>
+                                    GPU {{ gpu_idx }}{% if already_loaded %} ✓{% elif insufficient_memory %} 🚫{% endif %}
                                 </button>
                             {% endfor %}
                         {% else %}
-                            <!-- CPU fallback when no GPU detected -->
                             <button type="button"
                                     @click="selectedGpus = ['cpu']"
                                     :class="selectedGpus.includes('cpu') ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'"
@@ -76,7 +87,6 @@
                     </span>
                 </button>
             </form>
-            {% endif %}
         </div>
     </div>
 </li>

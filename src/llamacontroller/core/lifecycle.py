@@ -4,6 +4,8 @@ Model lifecycle manager for high-level model operations.
 
 import logging
 import asyncio
+import os
+import socket
 from typing import Optional, List, Dict, Union
 from datetime import datetime
 from dataclasses import dataclass
@@ -158,28 +160,123 @@ class ModelLifecycleManager:
         if recovered_count > 0:
             logger.info(f"Recovered {recovered_count} running processes")
     
-    def _check_gpu_conflicts(self, gpu_id: Union[int, str]) -> None:
+    @staticmethod
+    def estimate_model_memory_mb(model_path: str) -> int:
         """
-        Check for GPU conflicts
+        Estimate GPU memory needed to load a model.
+        
+        Uses model file size × 1.3 as the estimate.
+        
+        Args:
+            model_path: Path to the model file
+            
+        Returns:
+            Estimated memory in MiB
+        """
+        try:
+            file_size_bytes = os.path.getsize(model_path)
+            return int(file_size_bytes / (1024 * 1024) * 1.3)
+        except OSError:
+            return 0
+    
+    def get_model_memory_estimates(self) -> Dict[str, int]:
+        """
+        Get estimated GPU memory (MiB) for all configured models.
+        
+        Returns:
+            Dict mapping model_id to estimated memory in MiB
+        """
+        estimates = {}
+        for model in self.config_manager.models.models:
+            estimates[model.id] = self.estimate_model_memory_mb(model.path)
+        return estimates
+    
+    @staticmethod
+    def _make_instance_key(gpu_id: str, model_id: str) -> str:
+        """Create a unique instance key from gpu_id and model_id."""
+        return f"{gpu_id}:{model_id}"
+    
+    @staticmethod
+    def _parse_instance_key(instance_key: str) -> tuple:
+        """Parse instance key into (gpu_id, model_id)."""
+        parts = instance_key.split(":", 1)
+        if len(parts) != 2:
+            raise LifecycleError(f"Invalid instance key: {instance_key}")
+        return parts[0], parts[1]
+    
+    def _get_instances_for_gpu(self, gpu_id: str) -> Dict[str, 'GpuInstance']:
+        """Get all instances loaded on a specific GPU (or overlapping GPUs)."""
+        requested_gpus = set(self._validate_and_parse_gpu_id(gpu_id))
+        result = {}
+        for key, instance in self.gpu_instances.items():
+            instance_gpus = set(self._validate_and_parse_gpu_id(instance.gpu_id))
+            if requested_gpus & instance_gpus:
+                result[key] = instance
+        return result
+    
+    @staticmethod
+    def _is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+        """Check if a port is already in use."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, port))
+                return False
+            except OSError:
+                return True
+    
+    def _find_available_port(self, gpu_id: Union[int, str]) -> int:
+        """
+        Find an available port starting from the configured base port for this GPU.
+        Increments by 1 until an open port is found.
+        """
+        base_port = self.get_port_for_gpu(gpu_id)
+        
+        # Collect ports already used by our instances
+        used_ports = {inst.port for inst in self.gpu_instances.values()}
+        
+        port = base_port
+        max_attempts = 100
+        for _ in range(max_attempts):
+            if port not in used_ports and not self._is_port_in_use(port):
+                return port
+            port += 1
+        
+        raise LifecycleError(
+            f"Could not find an available port after {max_attempts} attempts "
+            f"(starting from {base_port})"
+        )
+    
+    def _check_gpu_memory_sufficient(self, gpu_id: Union[int, str], model_config: 'ModelConfig') -> None:
+        """
+        Check if GPU(s) have enough free memory to load the model.
+        
+        Estimation: model file size × 1.3
         
         Args:
             gpu_id: GPU ID to use
+            model_config: Model configuration with file path
             
         Raises:
-            LifecycleError: GPU conflict exists
+            LifecycleError: Insufficient GPU memory
         """
-        requested_gpus = set(self._validate_and_parse_gpu_id(gpu_id))
+        estimated_mb = self.estimate_model_memory_mb(model_config.path)
+        if estimated_mb == 0:
+            logger.warning(f"Could not estimate memory for model '{model_config.id}', skipping memory check")
+            return
         
-        for existing_key, instance in self.gpu_instances.items():
-            existing_gpus = set(self._validate_and_parse_gpu_id(existing_key))
-            
-            # Check for overlap
-            overlap = requested_gpus & existing_gpus
-            if overlap:
-                raise LifecycleError(
-                    f"GPU conflict: GPU(s) {overlap} already in use by '{existing_key}' "
-                    f"(model: '{instance.model_id}')"
-                )
+        memory_info = self._query_gpu_memory(gpu_id)
+        free_mb = memory_info['memory_total'] - memory_info['memory_used']
+        
+        if free_mb < estimated_mb:
+            raise LifecycleError(
+                f"Insufficient GPU memory on GPU {gpu_id}: "
+                f"{free_mb}MiB free, {estimated_mb}MiB estimated needed "
+                f"(model file size × 1.3)"
+            )
+        
+        logger.info(
+            f"GPU {gpu_id} memory check passed: {free_mb}MiB free >= {estimated_mb}MiB estimated"
+        )
     
     def get_port_for_gpu(self, gpu_id: Union[int, str]) -> int:
         """
@@ -205,17 +302,14 @@ class ModelLifecycleManager:
     
     def get_gpu_for_model(self, model_id: str) -> Optional[str]:
         """
-        Find which GPU has loaded the specified model
+        Find which GPU has loaded the specified model.
         
-        Args:
-            model_id: Model ID
-            
         Returns:
             GPU ID string, or None if model is not loaded
         """
-        for gpu_id, instance in self.gpu_instances.items():
+        for key, instance in self.gpu_instances.items():
             if instance.model_id == model_id:
-                return gpu_id
+                return instance.gpu_id
         return None
     
     def _query_gpu_memory(self, gpu_id: str) -> Dict[str, int]:
@@ -259,11 +353,13 @@ class ModelLifecycleManager:
         gpu_id: Union[int, str] = 0
     ) -> LoadModelResponse:
         """
-        Load model on specified GPU
+        Load model on specified GPU. Multiple models can share the same GPU
+        as long as there is sufficient free memory. Ports are auto-assigned
+        to avoid conflicts.
         
         Args:
             model_id: Model ID
-            gpu_id: GPU ID (0, 1, or "both")
+            gpu_id: GPU ID (0, 1, or "0,1" for multi-GPU)
             
         Returns:
             LoadModelResponse
@@ -276,17 +372,25 @@ class ModelLifecycleManager:
         try:
             # Normalize GPU ID
             normalized_gpu_id = self._normalize_gpu_id(gpu_id)
+            instance_key = self._make_instance_key(normalized_gpu_id, model_id)
+            
+            # Check if this exact model is already loaded on this GPU
+            if instance_key in self.gpu_instances:
+                raise LifecycleError(
+                    f"Model '{model_id}' is already loaded on GPU {normalized_gpu_id}"
+                )
             
             # Get model configuration
             model_config = self.config_manager.models.get_model(model_id)
             if model_config is None:
                 raise LifecycleError(f"Model not found: {model_id}")
             
-            # Check for GPU conflicts
-            self._check_gpu_conflicts(normalized_gpu_id)
+            # Check if GPU has enough free memory for this model
+            self._check_gpu_memory_sufficient(normalized_gpu_id, model_config)
             
-            # Determine port
-            port = self.get_port_for_gpu(normalized_gpu_id)
+            # Find an available port (auto-increment if configured port is occupied)
+            port = self._find_available_port(normalized_gpu_id)
+            logger.info(f"Using port {port} for model '{model_id}' on GPU {normalized_gpu_id}")
             
             # Create llama.cpp config copy with specific port
             llama_config = self.config_manager.llama_cpp.model_copy(deep=True)
@@ -313,7 +417,7 @@ class ModelLifecycleManager:
                 adapter.stop_server()
                 raise LifecycleError("Server failed to become ready within timeout")
             
-            # Create and store GPU instance
+            # Create and store GPU instance with composite key
             instance = GpuInstance(
                 gpu_id=normalized_gpu_id,
                 port=port,
@@ -322,12 +426,11 @@ class ModelLifecycleManager:
                 model_config=model_config,
                 load_time=datetime.now()
             )
-            self.gpu_instances[normalized_gpu_id] = instance
+            self.gpu_instances[instance_key] = instance
             
             # Register process in registry
             pid = adapter.get_pid()
             if pid:
-                # Get the command line from the adapter (we'll need to add this method)
                 command_line = [
                     str(llama_config.executable_path),
                     "-m", model_config.path,
@@ -336,7 +439,7 @@ class ModelLifecycleManager:
                 ]
                 
                 self.process_registry.register_process(
-                    gpu_id=normalized_gpu_id,
+                    gpu_id=instance_key,
                     pid=pid,
                     model_id=model_id,
                     model_name=model_config.name,
@@ -351,7 +454,7 @@ class ModelLifecycleManager:
             instance.memory_total_mb = memory_info['memory_total']
             
             logger.info(
-                f"Model '{model_id}' loaded on GPU {normalized_gpu_id}: "
+                f"Model '{model_id}' loaded on GPU {normalized_gpu_id} (port {port}): "
                 f"{memory_info['memory_used']}MiB / {memory_info['memory_total']}MiB"
             )
             
@@ -363,7 +466,7 @@ class ModelLifecycleManager:
             return LoadModelResponse(
                 success=True,
                 model_id=model_id,
-                message=f"Model '{model_config.name}' loaded on GPU {normalized_gpu_id}",
+                message=f"Model '{model_config.name}' loaded on GPU {normalized_gpu_id} (port {port})",
                 status=status
             )
             
@@ -373,53 +476,59 @@ class ModelLifecycleManager:
             logger.error(f"Unexpected error loading model: {e}")
             raise LifecycleError(f"Failed to load model: {e}")
     
-    async def unload_model(self, gpu_id: Union[int, str]) -> UnloadModelResponse:
+    async def unload_model(self, instance_key: str) -> UnloadModelResponse:
         """
-        Unload model from specified GPU
+        Unload model by instance key (format: "gpu_id:model_id").
+        Also supports legacy gpu_id-only format for backward compatibility.
         
         Args:
-            gpu_id: GPU ID
+            instance_key: Instance key "gpu_id:model_id" or legacy "gpu_id"
             
         Returns:
             UnloadModelResponse
         """
-        logger.info(f"Unloading model from GPU {gpu_id}")
+        logger.info(f"Unloading model: {instance_key}")
         
-        # Normalize GPU ID
-        normalized_gpu_id = self._normalize_gpu_id(gpu_id)
+        # Check if this is a composite instance key (gpu_id:model_id)
+        if instance_key in self.gpu_instances:
+            key = instance_key
+        else:
+            # Legacy format: just gpu_id — find first instance on this GPU
+            normalized = self._normalize_gpu_id(instance_key)
+            matching = [k for k in self.gpu_instances if k.startswith(normalized + ":")]
+            if not matching:
+                return UnloadModelResponse(
+                    success=True,
+                    message=f"No model loaded matching '{instance_key}'"
+                )
+            key = matching[0]
         
-        # Check if GPU has a model loaded
-        if normalized_gpu_id not in self.gpu_instances:
-            return UnloadModelResponse(
-                success=True,
-                message=f"No model loaded on GPU {normalized_gpu_id}"
-            )
-        
-        instance = self.gpu_instances[normalized_gpu_id]
+        instance = self.gpu_instances[key]
         model_id = instance.model_id
+        gpu_id = instance.gpu_id
         
         try:
             # Stop server
             success = instance.adapter.stop_server(graceful=True, timeout=30)
             
             if not success:
-                raise LifecycleError(f"Failed to stop server on GPU {gpu_id}")
+                raise LifecycleError(f"Failed to stop server for {key}")
             
             # Unregister from process registry
-            self.process_registry.unregister_process(normalized_gpu_id)
+            self.process_registry.unregister_process(key)
             
             # Remove from dictionary
-            del self.gpu_instances[normalized_gpu_id]
+            del self.gpu_instances[key]
             
-            logger.info(f"Model '{model_id}' unloaded from GPU {normalized_gpu_id}")
+            logger.info(f"Model '{model_id}' unloaded from GPU {gpu_id}")
             
             return UnloadModelResponse(
                 success=True,
-                message=f"Model '{model_id}' unloaded from GPU {normalized_gpu_id}"
+                message=f"Model '{model_id}' unloaded from GPU {gpu_id}"
             )
             
         except Exception as e:
-            logger.error(f"Error unloading model from GPU {gpu_id}: {e}")
+            logger.error(f"Error unloading model {key}: {e}")
             raise LifecycleError(f"Failed to unload model: {e}")
     
     async def switch_model(
@@ -428,10 +537,10 @@ class ModelLifecycleManager:
         gpu_id: Union[int, str] = 0
     ) -> SwitchModelResponse:
         """
-        在指定GPU上切换模型
+        Switch model on specified GPU — unloads old model on that GPU, loads new one.
         
         Args:
-            new_model_id: 新模型ID
+            new_model_id: New model ID
             gpu_id: GPU ID
             
         Returns:
@@ -440,36 +549,22 @@ class ModelLifecycleManager:
         logger.info(f"Switching to model '{new_model_id}' on GPU {gpu_id}")
         
         try:
-            # 标准化GPU ID
             normalized_gpu_id = self._normalize_gpu_id(gpu_id)
             
-            # 验证新模型存在
             new_model_config = self.config_manager.models.get_model(new_model_id)
             if new_model_config is None:
                 raise LifecycleError(f"Model not found: {new_model_id}")
             
-            # 获取旧模型ID
+            # Find existing instances on this GPU and unload them
             old_model_id = None
-            if normalized_gpu_id in self.gpu_instances:
-                old_model_id = self.gpu_instances[normalized_gpu_id].model_id
-                
-                # 如果是同一个模型，直接返回
-                if old_model_id == new_model_id:
-                    status = await self._get_instance_status(self.gpu_instances[normalized_gpu_id])
-                    return SwitchModelResponse(
-                        success=True,
-                        old_model_id=old_model_id,
-                        new_model_id=new_model_id,
-                        message=f"Model '{new_model_id}' is already loaded on GPU {normalized_gpu_id}",
-                        status=status
-                    )
-                
-                # 卸载旧模型
+            instances_on_gpu = self._get_instances_for_gpu(normalized_gpu_id)
+            for key, inst in list(instances_on_gpu.items()):
+                old_model_id = inst.model_id
                 logger.info(f"Unloading current model '{old_model_id}' from GPU {normalized_gpu_id}")
-                await self.unload_model(normalized_gpu_id)
-                await asyncio.sleep(1)  # Brief pause to ensure cleanup completes
+                await self.unload_model(key)
+                await asyncio.sleep(1)
             
-            # 加载新模型
+            # Load new model
             logger.info(f"Loading new model '{new_model_id}' on GPU {normalized_gpu_id}")
             load_response = await self.load_model(new_model_id, normalized_gpu_id)
             
@@ -499,11 +594,9 @@ class ModelLifecycleManager:
         Returns:
             ModelStatus
         """
-        # Prioritize GPU 0 status, otherwise return "0,1" or GPU 1
-        for gpu_key in ["0", "0,1", "1"]:
-            if gpu_key in self.gpu_instances:
-                instance = self.gpu_instances[gpu_key]
-                return await self._get_instance_status(instance)
+        # Return first loaded instance (backward compatible)
+        for key, instance in self.gpu_instances.items():
+            return await self._get_instance_status(instance)
         
         # No models loaded
         return ModelStatus(
@@ -518,35 +611,11 @@ class ModelLifecycleManager:
             port=self.config_manager.llama_cpp.gpu_ports.gpu0,
         )
     
-    async def get_gpu_status(
-        self, 
-        gpu_id: Union[int, str]
-    ) -> Optional[GpuInstanceStatus]:
-        """
-        Get status of a specific GPU
-        
-        Args:
-            gpu_id: GPU ID
-            
-        Returns:
-            GpuInstanceStatus or None
-        """
-        normalized_gpu_id = self._normalize_gpu_id(gpu_id)
-        logger.info(f"get_gpu_status called for gpu_id={gpu_id}, normalized={normalized_gpu_id}")
-        logger.info(f"Available gpu_instances: {list(self.gpu_instances.keys())}")
-        
-        if normalized_gpu_id not in self.gpu_instances:
-            logger.info(f"GPU {normalized_gpu_id} not found in instances, returning None")
-            return None
-        
-        instance = self.gpu_instances[normalized_gpu_id]
-        logger.info(f"Found instance for GPU {normalized_gpu_id}: model={instance.model_id}, port={instance.port}")
-        
-        # Query current memory (fresh data on every status check)
-        memory_info = self._query_gpu_memory(normalized_gpu_id)
-        
-        status_obj = GpuInstanceStatus(
-            gpu_id=normalized_gpu_id,
+    def _get_instance_status_obj(self, instance_key: str, instance: GpuInstance) -> GpuInstanceStatus:
+        """Build a GpuInstanceStatus from an instance, with fresh memory data."""
+        memory_info = self._query_gpu_memory(instance.gpu_id)
+        return GpuInstanceStatus(
+            gpu_id=instance.gpu_id,
             port=instance.port,
             model_id=instance.model_id,
             model_name=instance.model_config.name,
@@ -557,27 +626,52 @@ class ModelLifecycleManager:
             memory_used_mb=memory_info['memory_used'],
             memory_total_mb=memory_info['memory_total']
         )
-        logger.info(f"Returning status for GPU {normalized_gpu_id}: {status_obj}")
-        return status_obj
+    
+    async def get_gpu_status(
+        self, 
+        key_or_gpu_id: Union[str, int]
+    ) -> Optional[GpuInstanceStatus]:
+        """
+        Get status of a specific instance.
+        
+        Accepts either:
+        - Instance key format: "gpu_id:model_id"
+        - Legacy gpu_id format: "0", 1, etc. (returns first instance on that GPU)
+        
+        Returns:
+            GpuInstanceStatus or None
+        """
+        key_str = str(key_or_gpu_id)
+        
+        # Direct instance key match
+        if key_str in self.gpu_instances:
+            instance = self.gpu_instances[key_str]
+            return self._get_instance_status_obj(key_str, instance)
+        
+        # Legacy: treat as gpu_id, find first instance on that GPU
+        try:
+            normalized = self._normalize_gpu_id(key_or_gpu_id)
+        except LifecycleError:
+            return None
+        
+        for inst_key, instance in self.gpu_instances.items():
+            if instance.gpu_id == normalized:
+                return self._get_instance_status_obj(inst_key, instance)
+        
+        return None
     
     async def get_all_gpu_statuses(self) -> Dict[str, Optional[GpuInstanceStatus]]:
         """
-        Get status of all loaded GPUs
+        Get status of all loaded model instances.
         
         Returns:
-            Dictionary mapping GPU ID strings to GpuInstanceStatus
-            Keys are normalized GPU IDs: "0", "1", "0,1", "0,1,2" etc.
+            Dictionary mapping instance keys ("gpu_id:model_id") to GpuInstanceStatus
         """
         result = {}
+        for instance_key, instance in self.gpu_instances.items():
+            result[instance_key] = self._get_instance_status_obj(instance_key, instance)
         
-        # Return status for all loaded GPU instances
-        # Use GPU ID directly as key (no "gpu" prefix)
-        for gpu_id in self.gpu_instances.keys():
-            result[gpu_id] = await self.get_gpu_status(gpu_id)
-        
-        logger.info(f"get_all_gpu_statuses - returning {len(result)} statuses")
-        logger.info(f"get_all_gpu_statuses - keys: {list(result.keys())}")
-        
+        logger.info(f"get_all_gpu_statuses - returning {len(result)} statuses: {list(result.keys())}")
         return result
     
     async def _get_instance_status(self, instance: GpuInstance) -> ModelStatus:
@@ -604,15 +698,11 @@ class ModelLifecycleManager:
     
     def get_current_model(self) -> Optional[ModelConfig]:
         """
-        Get currently loaded model configuration (backward compatible)
-        Returns the first model found
-        
-        Returns:
-            ModelConfig or None
+        Get currently loaded model configuration (backward compatible).
+        Returns the first model found.
         """
-        for gpu_key in ["0", "0,1", "1"]:
-            if gpu_key in self.gpu_instances:
-                return self.gpu_instances[gpu_key].model_config
+        for instance in self.gpu_instances.values():
+            return instance.model_config
         return None
     
     async def healthcheck(self) -> HealthCheckResponse:
@@ -764,24 +854,26 @@ class ModelLifecycleManager:
                 logger.warning("No GPU instances loaded")
                 return ["No models currently loaded"]
             # Return logs from first available instance
-            gpu_id = next(iter(self.gpu_instances.keys()))
-            logger.info(f"Auto-selected GPU: {gpu_id}")
-        
-        normalized_gpu_id = self._normalize_gpu_id(gpu_id)
-        logger.info(f"Normalized GPU ID: {normalized_gpu_id}")
-        
-        if normalized_gpu_id not in self.gpu_instances:
-            # List currently loaded GPUs
-            loaded_gpus = list(self.gpu_instances.keys())
-            logger.warning(f"GPU {normalized_gpu_id} not found in loaded instances: {loaded_gpus}")
-            if loaded_gpus:
-                return [
-                    f"No model loaded on GPU {normalized_gpu_id}",
-                    f"Models are currently loaded on: {', '.join(loaded_gpus)}"
-                ]
-            return [f"No model loaded on GPU {normalized_gpu_id}"]
-        
-        instance = self.gpu_instances[normalized_gpu_id]
+            first_key = next(iter(self.gpu_instances.keys()))
+            instance = self.gpu_instances[first_key]
+            logger.info(f"Auto-selected instance: {first_key}")
+        else:
+            # Try as instance key first, then as gpu_id
+            if str(gpu_id) in self.gpu_instances:
+                instance = self.gpu_instances[str(gpu_id)]
+            else:
+                normalized = self._normalize_gpu_id(gpu_id)
+                matching = [k for k, v in self.gpu_instances.items() if v.gpu_id == normalized]
+                if not matching:
+                    loaded = list(self.gpu_instances.keys())
+                    logger.warning(f"GPU {gpu_id} not found in loaded instances: {loaded}")
+                    if loaded:
+                        return [
+                            f"No model loaded on GPU {gpu_id}",
+                            f"Models are currently loaded: {', '.join(loaded)}"
+                        ]
+                    return [f"No model loaded on GPU {gpu_id}"]
+                instance = self.gpu_instances[matching[0]]
         lines = min(lines, 300)
         logger.info(f"Getting logs from GPU {normalized_gpu_id}, model: {instance.model_id}")
         log_lines = instance.adapter.get_logs(lines=lines)
@@ -800,9 +892,9 @@ class ModelLifecycleManager:
         print(f"[DEBUG] detect_gpu_hardware() called in lifecycle.py", flush=True)
         
         # Update GPU detector with loaded model mappings
-        for gpu_id, instance in self.gpu_instances.items():
-            self.gpu_detector.set_model_mapping(gpu_id, instance.model_config.name)
-            print(f"[DEBUG] Set model mapping: GPU {gpu_id} -> {instance.model_config.name}", flush=True)
+        for key, instance in self.gpu_instances.items():
+            self.gpu_detector.set_model_mapping(instance.gpu_id, instance.model_config.name)
+            print(f"[DEBUG] Set model mapping: GPU {instance.gpu_id} -> {instance.model_config.name}", flush=True)
         
         # Detect GPUs
         print(f"[DEBUG] About to call gpu_detector.detect_gpus()...", flush=True)
@@ -820,7 +912,8 @@ class ModelLifecycleManager:
                         gpu_index=p.gpu_index,
                         pid=p.pid,
                         process_name=p.process_name,
-                        used_memory=p.used_memory
+                        used_memory=p.used_memory,
+                        user_id=getattr(p, 'user_id', None)
                     )
                     for p in gpu_status.process_info
                 ]

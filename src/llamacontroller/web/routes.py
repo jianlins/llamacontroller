@@ -161,6 +161,7 @@ async def dashboard(
     
     # Get available models
     available_models = lifecycle_manager.config_manager.models.models
+    model_memory_estimates = lifecycle_manager.get_model_memory_estimates()
     
     return templates.TemplateResponse(
         "dashboard.html",
@@ -171,6 +172,7 @@ async def dashboard(
             "gpu_statuses": gpu_statuses,
             "hardware_gpu_status": hardware_gpu_status,
             "available_models": available_models,
+            "model_memory_estimates": model_memory_estimates,
             "active_page": "dashboard"
         }
     )
@@ -186,18 +188,8 @@ async def load_model_ui(
 ):
     """Load a model on specified GPU(s) (HTMX endpoint)."""
     try:
-        # Refresh GPU status before loading to ensure accurate occupancy detection
-        hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
-        
-        # Verify selected GPU(s) are not occupied
-        selected_gpus = [int(g.strip()) for g in gpu_id.split(',') if g.strip().isdigit()]
-        for gpu_idx in selected_gpus:
-            if gpu_idx < len(hardware_gpu_status.gpus):
-                gpu_info = hardware_gpu_status.gpus[gpu_idx]
-                if gpu_info.state == 'occupied_by_others':
-                    raise Exception(f"GPU {gpu_idx} is occupied by another process. Please refresh and select an available GPU.")
-        
         # Load model on specified GPU
+        # Memory sufficiency is checked inside lifecycle_manager.load_model()
         result = await lifecycle_manager.load_model(selected_model, gpu_id)
         
         # Get updated GPU statuses and available models
@@ -205,6 +197,7 @@ async def load_model_ui(
         hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
         status_info = await lifecycle_manager.get_status()
         available_models = lifecycle_manager.config_manager.models.models
+        model_memory_estimates = lifecycle_manager.get_model_memory_estimates()
         
         return templates.TemplateResponse(
             "partials/dashboard_content.html",
@@ -214,6 +207,7 @@ async def load_model_ui(
                 "gpu_statuses": gpu_statuses,
                 "hardware_gpu_status": hardware_gpu_status,
                 "available_models": available_models,
+                "model_memory_estimates": model_memory_estimates,
                 "message": result.message,
                 "message_type": "success"
             }
@@ -223,6 +217,7 @@ async def load_model_ui(
         hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
         status_info = await lifecycle_manager.get_status()
         available_models = lifecycle_manager.config_manager.models.models
+        model_memory_estimates = lifecycle_manager.get_model_memory_estimates()
         
         # Get server logs to help diagnose the error (if any adapter exists)
         server_logs = []
@@ -235,6 +230,7 @@ async def load_model_ui(
                 "gpu_statuses": gpu_statuses,
                 "hardware_gpu_status": hardware_gpu_status,
                 "available_models": available_models,
+                "model_memory_estimates": model_memory_estimates,
                 "message": f"Failed to load model: {str(e)}",
                 "message_type": "error",
                 "server_logs": server_logs
@@ -245,19 +241,24 @@ async def load_model_ui(
 @router.post("/dashboard/unload-model", include_in_schema=False)
 async def unload_model_ui(
     request: Request,
-    gpu_id: str = Form(...),  # GPU ID to unload from
+    instance_key: str = Form(None),
+    gpu_id: str = Form(None),
     user: User = Depends(get_current_user_from_session),
     lifecycle_manager: ModelLifecycleManager = Depends(get_lifecycle_manager)
 ):
     """Unload model from specified GPU(s) (HTMX endpoint)."""
+    unload_key = instance_key or gpu_id
+    if not unload_key:
+        raise Exception("No instance_key or gpu_id provided")
     try:
-        await lifecycle_manager.unload_model(gpu_id)
+        await lifecycle_manager.unload_model(unload_key)
         
         # Get updated GPU statuses and available models
         gpu_statuses = await lifecycle_manager.get_all_gpu_statuses()
         hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
         status_info = await lifecycle_manager.get_status()
         available_models = lifecycle_manager.config_manager.models.models
+        model_memory_estimates = lifecycle_manager.get_model_memory_estimates()
         
         return templates.TemplateResponse(
             "partials/dashboard_content.html",
@@ -267,7 +268,8 @@ async def unload_model_ui(
                 "gpu_statuses": gpu_statuses,
                 "hardware_gpu_status": hardware_gpu_status,
                 "available_models": available_models,
-                "message": f"Successfully unloaded model from GPU {gpu_id}",
+                "model_memory_estimates": model_memory_estimates,
+                "message": f"Successfully unloaded model ({unload_key})",
                 "message_type": "success"
             }
         )
@@ -276,6 +278,7 @@ async def unload_model_ui(
         hardware_gpu_status = await lifecycle_manager.detect_gpu_hardware()
         status_info = await lifecycle_manager.get_status()
         available_models = lifecycle_manager.config_manager.models.models
+        model_memory_estimates = lifecycle_manager.get_model_memory_estimates()
         return templates.TemplateResponse(
             "partials/dashboard_content.html",
             {
@@ -284,7 +287,8 @@ async def unload_model_ui(
                 "gpu_statuses": gpu_statuses,
                 "hardware_gpu_status": hardware_gpu_status,
                 "available_models": available_models,
-                "message": f"Failed to unload model from GPU {gpu_id}: {str(e)}",
+                "model_memory_estimates": model_memory_estimates,
+                "message": f"Failed to unload model ({unload_key}): {str(e)}",
                 "message_type": "error"
             }
         )
@@ -328,6 +332,7 @@ async def refresh_dashboard(
     
     # Get available models
     available_models = lifecycle_manager.config_manager.models.models
+    model_memory_estimates = lifecycle_manager.get_model_memory_estimates()
     
     return templates.TemplateResponse(
         "partials/dashboard_content.html",
@@ -336,7 +341,8 @@ async def refresh_dashboard(
             "status": status_info,
             "gpu_statuses": gpu_statuses,
             "hardware_gpu_status": hardware_gpu_status,
-            "available_models": available_models
+            "available_models": available_models,
+            "model_memory_estimates": model_memory_estimates
         }
     )
 

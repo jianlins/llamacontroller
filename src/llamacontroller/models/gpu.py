@@ -19,6 +19,7 @@ class GpuProcessInfoResponse(BaseModel):
     pid: int = Field(..., description="Process ID")
     process_name: str = Field(..., description="Process name")
     used_memory: int = Field(..., description="Used memory in MiB")
+    user_id: Optional[str] = Field(None, description="User ID running the process")
 
 class GpuStatusResponse(BaseModel):
     """Single GPU status response."""
