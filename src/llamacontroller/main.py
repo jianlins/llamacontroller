@@ -35,6 +35,25 @@ async def lifespan(app: FastAPI):
         # Initialize managers
         initialize_managers(config_dir="./config")
         logger.info("Managers initialized successfully")
+        
+        # Sync users from auth-config.yaml to database
+        from .api.dependencies import get_config_manager
+        from .db.base import SessionLocal
+        from .db import crud
+        
+        config_manager = get_config_manager()
+        db = SessionLocal()
+        try:
+            stats = crud.sync_users_from_config(db, config_manager.auth)
+            logger.info(
+                f"User sync completed: {stats['created']} created, "
+                f"{stats['existing']} existing, {stats['total']} total"
+            )
+        except Exception as e:
+            logger.error(f"Failed to sync users from config: {e}")
+        finally:
+            db.close()
+            
     except Exception as e:
         logger.error(f"Failed to initialize managers: {e}")
         raise

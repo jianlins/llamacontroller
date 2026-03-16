@@ -47,6 +47,45 @@ def delete_user(db: Session, user: User) -> None:
     db.delete(user)
     db.commit()
 
+def sync_users_from_config(db: Session, auth_config) -> dict:
+    """
+    Synchronize users from auth configuration to database
+    
+    Args:
+        db: Database session
+        auth_config: AuthConfig object from configuration
+    
+    Returns:
+        dict: Statistics about sync operation (created, updated, total)
+    """
+    from llamacontroller.auth.utils import hash_password
+    
+    stats = {"created": 0, "existing": 0, "total": len(auth_config.users)}
+    
+    for user_config in auth_config.users:
+        existing_user = get_user_by_username(db, user_config.username)
+        
+        if existing_user is not None:
+            stats["existing"] += 1
+            # User exists - we don't update password to avoid overwriting user changes
+            # If you want to force sync passwords, uncomment the following lines:
+            # password_hash = hash_password(user_config.password)
+            # existing_user.password_hash = password_hash
+            # existing_user.role = user_config.role
+            # update_user(db, existing_user)
+        else:
+            # Create new user from config
+            password_hash = hash_password(user_config.password)
+            create_user(
+                db,
+                username=user_config.username,
+                password_hash=password_hash,
+                role=user_config.role
+            )
+            stats["created"] += 1
+    
+    return stats
+
 def increment_failed_login(db: Session, user: User, lockout_duration: int = 300) -> User:
     """
     Increment failed login count

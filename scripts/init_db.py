@@ -1,7 +1,7 @@
 """
 初始化数据库脚本
 
-创建所有数据库表并创建初始管理员用户
+创建所有数据库表并从 auth-config.yaml 创建初始用户
 """
 import sys
 import os
@@ -14,36 +14,52 @@ sys.path.insert(0, str(project_root / "src"))
 from llamacontroller.db.base import init_db, get_db
 from llamacontroller.auth.utils import hash_password
 from llamacontroller.db import crud
+from llamacontroller.core.config import ConfigManager
 
-def create_default_admin():
-    """创建默认管理员用户"""
+def sync_users_from_config():
+    """从 auth-config.yaml 同步用户到数据库"""
     db = next(get_db())
     
     try:
-        # 检查是否已存在管理员
-        admin = crud.get_user_by_username(db, "admin")
+        # 加载配置
+        config_dir = project_root / "config"
+        config_manager = ConfigManager(config_dir=str(config_dir))
+        config_manager.load_config()
+        auth_config = config_manager.auth
         
-        if admin is not None:
-            print("✓ 管理员用户已存在")
-            return
+        print(f"从配置文件加载了 {len(auth_config.users)} 个用户")
         
-        # 创建默认管理员
-        default_password = "admin123"
-        password_hash = hash_password(default_password)
-        
-        admin = crud.create_user(
-            db,
-            username="admin",
-            password_hash=password_hash,
-            role="admin"
-        )
-        
-        print(f"✓ 创建管理员用户: {admin.username}")
-        print(f"  默认密码: {default_password}")
-        print("  ⚠️  请立即修改默认密码！")
+        # 同步每个用户
+        for user_config in auth_config.users:
+            # 检查用户是否已存在
+            existing_user = crud.get_user_by_username(db, user_config.username)
+            
+            if existing_user is not None:
+                print(f"✓ 用户已存在: {user_config.username}")
+                # 可选：更新密码（如果配置中的密码是明文，我们假设它可能已更改）
+                # 注意：这里我们不更新密码，因为用户可能已经在系统中修改了密码
+                # 如果需要强制同步，取消下面两行的注释：
+                # password_hash = hash_password(user_config.password)
+                # existing_user.password_hash = password_hash
+                # crud.update_user(db, existing_user)
+                continue
+            
+            # 创建新用户
+            password_hash = hash_password(user_config.password)
+            
+            user = crud.create_user(
+                db,
+                username=user_config.username,
+                password_hash=password_hash,
+                role=user_config.role
+            )
+            
+            print(f"✓ 创建用户: {user.username} (角色: {user.role})")
+            if user_config.password in ["admin123", "password", "12345"]:
+                print(f"  ⚠️  用户 '{user.username}' 使用默认密码，请立即修改！")
         
     except Exception as e:
-        print(f"✗ 创建管理员失败: {e}")
+        print(f"✗ 同步用户失败: {e}")
         raise
     finally:
         db.close()
@@ -65,11 +81,11 @@ def main():
         print(f"✗ 数据库初始化失败: {e}")
         return 1
     
-    # 创建默认管理员
+    # 从配置文件同步用户
     try:
-        create_default_admin()
+        sync_users_from_config()
     except Exception as e:
-        print(f"✗ 创建默认用户失败: {e}")
+        print(f"✗ 同步用户失败: {e}")
         return 1
     
     print("\n=== 初始化完成 ===")
